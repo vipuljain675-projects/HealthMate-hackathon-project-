@@ -1,0 +1,109 @@
+# ===========================================
+# HealthVault — .gitignore
+# ===========================================
+
+# ──────────────────────────────────────────
+# SECRETS & ENVIRONMENT VARIABLES (NEVER COMMIT!)
+# ──────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+backend/.env
+
+# ──────────────────────────────────────────
+# PYTHON / FASTAPI BACKEND
+# ──────────────────────────────────────────
+# Virtual environment
+backend/.venv/
+.venv/
+venv/
+env/
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Egg / dist / build artifacts
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+.eggs/
+
+# Testing / coverage artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+.mypy_cache/
+
+# ──────────────────────────────────────────
+# LOCAL DATABASE FILES (NEVER COMMIT PATIENT DATA!)
+# ──────────────────────────────────────────
+# ChromaDB local vector store (patient embeddings — private data)
+backend/data/chroma_db/
+data/chroma_db/
+chroma_db/
+
+# Local SQLite DB (if generated during dev)
+*.db
+*.sqlite
+*.sqlite3
+backend/health_app.db
+
+# ──────────────────────────────────────────
+# NEXT.JS / FRONTEND
+# ──────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.production
+
+# npm / yarn / pnpm
+node_modules/
+.pnp
+.pnp.js
+yarn.lock
+package-lock.json
+
+# Next.js build output
+.next/
+out/
+
+# ──────────────────────────────────────────
+# MACOS
+# ──────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# ──────────────────────────────────────────
+# EDITOR / IDE
+# ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ──────────────────────────────────────────
+# LOGS
+# ──────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+
+# ──────────────────────────────────────────
+# MISC UPLOADED / GENERATED MEDIA
+# ──────────────────────────────────────────
+# Uploaded patient document scans (stored in Supabase Storage, not here)
+uploads/
+*.tmp

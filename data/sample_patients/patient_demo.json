@@ -1,0 +1,88 @@
+{
+  "auth_user_id": "demo-patient-auth-id-123",
+  "name": "Rajesh Kumar",
+  "email": "rajesh.kumar@example.com",
+  "visits": [
+    {
+      "date": "2025-05-10",
+      "hospital": "Max Super Speciality Hospital",
+      "doctor_name": "Dr. V. K. Gupta",
+      "reason": "Annual Health Checkup & Hypertension review",
+      "diagnosis": "Stage 1 Primary Hypertension",
+      "notes": "Patient complains of occasional headaches in the morning. BP recorded at 138/88 mmHg. Advised lifestyle modification, low-salt diet, and 30 mins morning walk daily.",
+      "source_type": "manual_entry"
+    },
+    {
+      "date": "2025-07-22",
+      "hospital": "Apollo Clinic",
+      "doctor_name": "Dr. Sunita Mehta",
+      "reason": "High fasting blood sugar check",
+      "diagnosis": "Mild Impaired Fasting Glucose (Pre-diabetes)",
+      "notes": "Fasting blood glucose elevated at 108 mg/dL. Recommended Metformin 500mg daily with dinner. Follow up HbA1c test after 3 months.",
+      "source_type": "scan",
+      "original_file_url": "https://example.com/scans/sample_lab_report.pdf"
+    }
+  ],
+  "medications": [
+    {
+      "drug_name": "Amlodipine",
+      "dosage": "5mg",
+      "frequency": "once daily",
+      "purpose": "Blood pressure control",
+      "status": "active",
+      "started_on": "2025-05-10"
+    },
+    {
+      "drug_name": "Metformin",
+      "dosage": "500mg",
+      "frequency": "once daily at night",
+      "purpose": "Blood sugar control",
+      "status": "active",
+      "started_on": "2025-07-22"
+    }
+  ],
+  "labs": [
+    {
+      "test_name": "Serum Creatinine",
+      "value": "0.9 mg/dL",
+      "flag": "normal",
+      "date": "2025-05-10"
+    },
+    {
+      "test_name": "HbA1c",
+      "value": "6.1%",
+      "flag": "normal",
+      "date": "2025-07-22"
+    },
+    {
+      "test_name": "Fasting Blood Sugar",
+      "value": "108 mg/dL",
+      "flag": "elevated",
+      "date": "2025-07-22"
+    }
+  ],
+  "reminders": [
+    {
+      "medicine_name": "Amlodipine",
+      "dosage": "5mg",
+      "time_of_day": "08:00",
+      "frequency": "daily"
+    },
+    {
+      "medicine_name": "Metformin",
+      "dosage": "500mg",
+      "time_of_day": "21:00",
+      "frequency": "daily"
+    }
+  ],
+  "appointments": [
+    {
+      "doctor_name": "Dr. Sunita Mehta",
+      "hospital": "Apollo Clinic",
+      "appointment_date": "2026-09-01",
+      "appointment_time": "10:30",
+      "reason": "Quarterly HbA1c review & medication check",
+      "status": "upcoming"
+    }
+  ]
+}
