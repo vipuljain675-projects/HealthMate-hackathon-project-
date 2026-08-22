@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   ShieldCheck, 
@@ -14,24 +14,78 @@ import {
   Activity, 
   Database, 
   BrainCircuit,
-  CheckCircle2
+  CheckCircle2,
+  Calendar,
+  Loader2
 } from 'lucide-react';
 
 export default function AuthPage() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [name, setName] = useState('Rajesh Kumar');
-  const [email, setEmail] = useState('rajesh.kumar@example.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [age, setAge] = useState('35 Yrs');
+  const [gender, setGender] = useState('Male');
+  
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Clear stale sessions that used old timestamp-based tokens (pre-fix)
+  // These tokens look like: mock_user_vipul_jain_1787388797410
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user_session');
+      if (raw) {
+        const session = JSON.parse(raw);
+        // Old tokens had a long numeric timestamp at the end
+        if (session?.auth_token && /\d{13}$/.test(session.auth_token)) {
+          localStorage.removeItem('user_session');
+          console.log('[Auth] Cleared stale timestamped session — please re-login');
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
+
+    const patientName = name.trim() || (authMode === 'signup' ? 'New Patient' : 'Rajesh Kumar');
+    const patientEmail = email.trim() || (authMode === 'signup' ? 'patient@example.com' : 'rajesh.kumar@example.com');
+    // IMPORTANT: Use stable token based on email so patient record persists across logins
+    const stableKey = patientEmail.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const authToken = `mock_user_${stableKey}`;
+
+    const userSession = {
+      auth_token: authToken,
+      name: patientName,
+      email: patientEmail,
+      age: age || '35 Yrs',
+      gender: gender || 'Male',
+      patient_id: `PID-${Math.floor(100000 + Math.random() * 900000)}`
+    };
+
+    try {
+      localStorage.setItem('user_session', JSON.stringify(userSession));
+      
+      // Register or update profile in live backend Supabase Postgres DB
+      await fetch('http://localhost:8000/api/me', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ name: patientName, email: patientEmail })
+      });
+    } catch (err) {
+      console.error('Session save error:', err);
+    }
+
     setAuthSuccess(true);
+
     setTimeout(() => {
-      window.location.href = '/timeline';
-    }, 700);
+      window.location.href = '/overview';
+    }, 600);
   };
 
   return (
@@ -67,7 +121,7 @@ export default function AuthPage() {
           <div className="space-y-2">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-              <span>Next-Gen Personal Health Records</span>
+              <span>Next-Gen Personal Health OS</span>
             </div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight">
               {authMode === 'signin' ? 'Welcome Back to' : 'Create Your'} <span className="gradient-text">HealthVault</span>
@@ -109,27 +163,27 @@ export default function AuthPage() {
             {authSuccess && (
               <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Authentication successful! Opening patient dashboard...</span>
+                <span>Account authenticated! Opening patient workspace...</span>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {authMode === 'signup' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Full Name</label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Rajesh Kumar"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
-                      required
-                    />
-                  </div>
+              <div>
+                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                  <input
+                    type="text"
+                    placeholder={authMode === 'signup' ? "e.g. Vipul Jain" : "e.g. Rajesh Kumar"}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                    required
+                  />
                 </div>
-              )}
+              </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Email Address</label>
@@ -137,6 +191,7 @@ export default function AuthPage() {
                   <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
                   <input
                     type="email"
+                    placeholder="e.g. user@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
@@ -145,12 +200,38 @@ export default function AuthPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Age</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 35 Yrs"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Gender</label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Password</label>
                 <div className="relative">
-                  <Key className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
                   <input
                     type="password"
+                    placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
@@ -162,86 +243,52 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full py-3.5 rounded-xl font-bold text-white gradient-btn flex items-center justify-center space-x-2 shadow-lg shadow-teal-500/20"
+                className="w-full py-3.5 rounded-xl font-bold text-white gradient-btn flex items-center justify-center space-x-2 text-sm shadow-xl shadow-teal-500/20 disabled:opacity-50 mt-2"
               >
-                <span>{isLoggingIn ? 'Authenticating...' : authMode === 'signin' ? 'Sign In to Workspace' : 'Register Account'}</span>
-                <ArrowRight className="w-4 h-4" />
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{authMode === 'signin' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
 
-            <div className="pt-2 text-center">
-              <Link
-                href="/timeline"
-                className="text-xs text-teal-400 hover:text-teal-300 font-semibold inline-flex items-center gap-1.5 transition-colors"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Enter Demo Patient Account Directly</span>
-              </Link>
+            <div className="pt-2 text-center text-xs text-gray-500">
+              By continuing, you agree to HealthVault's <span className="text-gray-400 underline">Terms of Service</span>.
             </div>
           </div>
         </div>
 
-        {/* Right Column: AI Medical Graphic Visualization (7 cols) */}
-        <div className="lg:col-span-7 relative flex items-center justify-center">
-          
-          {/* Ambient Glow Backdrops */}
-          <div className="absolute -inset-4 bg-gradient-to-r from-teal-500/20 via-blue-500/20 to-purple-500/20 rounded-3xl blur-3xl opacity-60" />
-          
-          <div className="relative w-full rounded-3xl border border-teal-500/30 overflow-hidden shadow-2xl bg-gray-950/80 group">
-            
-            {/* Generated Futuristic AI Medical Image */}
-            <img
-              src="/healthvault_hero.png"
-              alt="AI Health Visualization"
-              className="w-full h-[520px] object-cover opacity-90 group-hover:scale-102 transition-transform duration-700"
+        {/* Right Column: Hero Graphic */}
+        <div className="lg:col-span-7 hidden lg:block">
+          <div className="relative rounded-3xl overflow-hidden border border-gray-800 shadow-2xl group">
+            <img 
+              src="/healthvault_auth_hero.png" 
+              alt="HealthVault Medical Workspace" 
+              className="w-full h-[540px] object-cover object-center group-hover:scale-105 transition-transform duration-700"
             />
-
-            {/* Overlay Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#070a11] via-transparent to-transparent opacity-80" />
-
-            {/* Floating Live Tech Badges */}
-            <div className="absolute bottom-6 left-6 right-6 grid grid-cols-3 gap-3">
-              
-              <div className="glass-card p-3 rounded-2xl border border-teal-500/30 backdrop-blur-md flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-t from-[#070a11] via-[#070a11]/40 to-transparent flex flex-col justify-end p-8">
+              <div className="glass-card rounded-2xl p-5 border border-teal-500/30 bg-gray-950/80 max-w-md">
+                <div className="flex items-center space-x-2 text-teal-400 font-bold text-xs mb-1">
                   <BrainCircuit className="w-4 h-4" />
+                  <span>Multimodal Clinical RAG Architecture</span>
                 </div>
-                <div>
-                  <span className="text-[11px] font-bold text-white block">Groq AI Vision</span>
-                  <span className="text-[9px] text-teal-300">OCR Scan Parser</span>
-                </div>
+                <h3 className="text-base font-bold text-white">Unified Medical Timeline & OCR Ingestion</h3>
+                <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                  Automatically structure doctor prescriptions, track active medications, and query clinical notes with AI grounding.
+                </p>
               </div>
-
-              <div className="glass-card p-3 rounded-2xl border border-blue-500/30 backdrop-blur-md flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0">
-                  <Activity className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-bold text-white block">ChromaDB RAG</span>
-                  <span className="text-[9px] text-blue-300">Vector Search</span>
-                </div>
-              </div>
-
-              <div className="glass-card p-3 rounded-2xl border border-emerald-500/30 backdrop-blur-md flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
-                  <Database className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-bold text-white block">Live Supabase DB</span>
-                  <span className="text-[9px] text-emerald-300">Encrypted Postgres</span>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>
 
       </div>
-
-      {/* Footer */}
-      <footer className="px-6 py-4 text-center text-xs text-gray-500 border-t border-gray-800/40">
-        © 2026 HealthVault Personal Health Platform. Powered by FastAPI, Supabase, Groq & ChromaDB.
-      </footer>
     </div>
   );
 }

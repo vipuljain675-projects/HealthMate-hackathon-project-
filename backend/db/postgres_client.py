@@ -46,7 +46,7 @@ def get_db():
 # ==========================================
 # Patient Operations
 # ==========================================
-def get_or_create_patient(db: Session, auth_user_id: str, name: str = "Demo Patient", email: Optional[str] = None) -> Patient:
+def get_or_create_patient(db: Session, auth_user_id: str, name: str = "Rajesh Kumar", email: Optional[str] = None) -> Patient:
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
     if not patient:
         patient = Patient(
@@ -130,6 +130,8 @@ def create_medication(
     dosage: Optional[str] = None,
     frequency: Optional[str] = None,
     purpose: Optional[str] = None,
+    duration_days: Optional[str] = None,
+    notes: Optional[str] = None,
     status: str = "active",
     started_on: Optional[date] = None,
     visit_id: Optional[uuid.UUID] = None
@@ -142,6 +144,8 @@ def create_medication(
         dosage=dosage,
         frequency=frequency,
         purpose=purpose,
+        duration_days=duration_days,
+        notes=notes,
         status=status,
         started_on=started_on or date.today()
     )
@@ -199,6 +203,7 @@ def create_reminder(
     dosage: Optional[str] = None,
     time_of_day: str = "08:00",
     frequency: str = "daily",
+    notes: Optional[str] = None,
     medication_id: Optional[uuid.UUID] = None
 ) -> Reminder:
     reminder = Reminder(
@@ -209,6 +214,7 @@ def create_reminder(
         dosage=dosage,
         time_of_day=time_of_day,
         frequency=frequency,
+        notes=notes,
         active=True
     )
     db.add(reminder)

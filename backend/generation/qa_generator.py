@@ -12,19 +12,39 @@ from augmentation.prompt_builder import build_qa_prompt
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-# Use qwen with reasoning_effort=none to disable <think> output
-GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
 
 
 def clean_llm_response(text: str) -> str:
     """Strips internal reasoning / thinking process from LLM output."""
     if not text:
         return ""
+    # Strip <think>...</think> blocks (qwen-style)
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'Here\'s a thinking process:[\s\S]*?(?=(Hello|Here is|Based on|I |You |Disclaimer:))', '', text, flags=re.IGNORECASE)
     text = re.sub(r'<think>[\s\S]*?(?=(Hello|Here is|Based on|I |You |Disclaimer:))', '', text, flags=re.IGNORECASE)
     text = re.sub(r'</?think>', '', text, flags=re.IGNORECASE)
+
+    # Strip compound-mini style internal reasoning patterns (numbered lists + "**Evaluate**" blocks)
+    patterns = [
+        r'1\.\s+\*\*[A-Z][^*]+\*\*:[\s\S]+?(?=\n\nBased on|Based on|Disclaimer:)',
+        r'\*\*Evaluate.*?\*\*[\s\S]*?(?=Based on|I couldn)',
+        r'\*\*Formulate.*?\*\*[\s\S]*?(?=Based on|I couldn)',
+        r'\*\*Check.*?\*\*[\s\S]*?(?=Based on|I couldn)',
+        r'Draft:[\s\S]*?(?=Based on|Disclaimer:)',
+        r'Self-Correction[\s\S]*?(?=Based on|Disclaimer:|$)',
+        r'\[Output Generation\][\s\S]*',
+        r'(?:Proceeds\.|All good\.|Final Check[\s\S]*?(?=Based on|$))',
+    ]
+    for pattern in patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+    # Extract just the "Based on..." portion if internal reasoning leaked
+    if 'Based on your' in text:
+        idx = text.find('Based on your')
+        text = text[idx:]
+
     return text.strip()
+
 
 
 def extract_query_filters(user_question: str) -> Dict[str, Optional[str]]:
@@ -106,8 +126,7 @@ def answer_patient_question(
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=700,
-            reasoning_effort="none"  # Disables Qwen3 thinking mode — no <think> tags
+            max_tokens=700
         )
 
         raw_answer = response.choices[0].message.content or "No response generated."

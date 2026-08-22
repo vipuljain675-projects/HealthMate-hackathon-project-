@@ -15,8 +15,17 @@ export default function MedicationsPage() {
       const url = filterStatus === 'all'
         ? 'http://localhost:8000/api/medications'
         : `http://localhost:8000/api/medications?status=${filterStatus}`;
+      let token = 'mock_token_dev';
+      try {
+        const raw = localStorage.getItem('user_session');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.auth_token) token = parsed.auth_token;
+        }
+      } catch (e) {}
+
       const res = await fetch(url, {
-        headers: { 'Authorization': 'Bearer mock_token_dev' }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to load medications');
       const data = await res.json();
@@ -76,12 +85,16 @@ export default function MedicationsPage() {
           {meds.map((m: any) => (
             <MedicationCard
               key={m.id}
+              id={m.id}
               drug_name={m.drug_name}
               dosage={m.dosage}
               frequency={m.frequency}
               purpose={m.purpose}
+              duration_days={m.duration_days}
+              notes={m.notes}
               status={m.status}
               started_on={m.started_on}
+              onRefresh={fetchMeds}
             />
           ))}
         </div>

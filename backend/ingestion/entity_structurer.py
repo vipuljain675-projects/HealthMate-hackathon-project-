@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from typing import List, Optional
 from datetime import date
@@ -8,7 +9,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
+
+
+def clean_json_string(text: str) -> str:
+    """Strips thinking tags and extracts valid JSON between braces."""
+    if not text:
+        return "{}"
+    cleaned = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<think>[\s\S]*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</?think>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.strip()
+
+    start_idx = cleaned.find('{')
+    end_idx = cleaned.rfind('}')
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        return cleaned[start_idx:end_idx+1]
+    return cleaned
 
 
 class ExtractedMedication(BaseModel):
@@ -16,17 +33,18 @@ class ExtractedMedication(BaseModel):
     dosage: Optional[str] = None
     frequency: Optional[str] = None
     purpose: Optional[str] = None
+    duration_days: Optional[str] = None
     status: str = "active"
 
 
 class ExtractedLab(BaseModel):
     test_name: str
     value: Optional[str] = None
-    flag: Optional[str] = "normal"  # "normal", "elevated", "low"
+    flag: Optional[str] = "normal"
 
 
 class ExtractedVisit(BaseModel):
-    date: str  # YYYY-MM-DD
+    date: Optional[str] = None  # YYYY-MM-DD (Optional to prevent Pydantic crash if LLM returns null)
     hospital: Optional[str] = None
     doctor_name: Optional[str] = None
     reason: Optional[str] = None
@@ -58,8 +76,8 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
                 notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
             ),
             medications=[
-                ExtractedMedication(drug_name="Amlodipine", dosage="5mg", frequency="once daily", purpose="BP control"),
-                ExtractedMedication(drug_name="Metformin", dosage="500mg", frequency="twice daily", purpose="Diabetes control")
+                ExtractedMedication(drug_name="Amlodipine", dosage="5mg", frequency="once daily", purpose="BP control", duration_days="30 days"),
+                ExtractedMedication(drug_name="Metformin", dosage="500mg", frequency="twice daily", purpose="Diabetes control", duration_days="30 days")
             ],
             labs=[
                 ExtractedLab(test_name="HbA1c", value="6.2%", flag="normal"),
@@ -73,7 +91,13 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
         client = Groq(api_key=GROQ_API_KEY)
 
         system_prompt = (
-            "You are a medical data extraction LLM. Your job is to extract structured JSON from raw clinical notes/OCR text.\n"
+            "You are a medical data extraction LLM. Extract structured JSON from raw clinical notes/OCR text.\n"
+            "IMPORTANT RULES:\n"
+            "- 'doctor_name': Extract the prescribing doctor from fields like 'Dr.', 'By:', 'Physician:', 'Consultant:', 'Doctor:', 'Referred by:'. "
+            "For prescriptions, this is the doctor who SIGNS the Rx. For lab reports, this may be the referring/ordering doctor.\n"
+            "- 'hospital': Extract clinic/hospital/lab name from header/letterhead. For Lal PathLabs reports, hospital = 'Lal PathLabs'. For Apollo reports, include branch.\n"
+            "- 'date': Use DD-MM-YYYY or YYYY-MM-DD found in the document.\n"
+            "- Do NOT confuse lab technician names with prescribing doctor names.\n"
             "Respond ONLY with valid JSON matching this exact structure:\n"
             "{\n"
             '  "visit": {\n'
@@ -85,7 +109,7 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
             '    "notes": "Narrative clinical impression or null"\n'
             "  },\n"
             '  "medications": [\n'
-            '    {"drug_name": "Name", "dosage": "5mg", "frequency": "once daily", "purpose": "BP", "status": "active"}\n'
+            '    {"drug_name": "Name", "dosage": "5mg", "frequency": "once daily", "purpose": "BP", "duration_days": "30 days", "status": "active"}\n'
             "  ],\n"
             '  "labs": [\n'
             '    {"test_name": "HbA1c", "value": "6.2%", "flag": "normal"}\n'
@@ -98,14 +122,20 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
             model=GROQ_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text}"}
+                {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:3000]}"}
             ],
-            response_format={"type": "json_object"},
             temperature=0.1
         )
 
-        json_str = response.choices[0].message.content or "{}"
+        raw_content = response.choices[0].message.content or "{}"
+        json_str = clean_json_string(raw_content)
+
         parsed_dict = json.loads(json_str)
+        visit_data = parsed_dict.get("visit", {}) or {}
+        if not visit_data.get("date"):
+            visit_data["date"] = date.today().isoformat()
+        parsed_dict["visit"] = visit_data
+
         return StructuredClinicalExtraction(**parsed_dict)
 
     except Exception as e:

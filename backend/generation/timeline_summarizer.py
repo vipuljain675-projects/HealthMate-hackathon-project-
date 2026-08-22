@@ -7,7 +7,7 @@ from augmentation.prompt_builder import build_timeline_prompt
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
 
 
 def clean_llm_response(text: str) -> str:
@@ -49,8 +49,7 @@ def generate_timeline_summary(patient_name: str, structured_facts: Dict[str, Any
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=1000,
-            reasoning_effort="none"  # Disables Qwen3 think mode
+            max_tokens=1000
         )
 
         raw = response.choices[0].message.content or "Unable to generate timeline summary."

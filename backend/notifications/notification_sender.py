@@ -5,9 +5,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
-VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
-VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@example.com")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@healthvault.app")
+
+# In-memory push subscription store (keyed by patient_id)
+# In production: store in DB table
+_push_subscriptions: Dict[str, Dict] = {}
+
+
+def save_push_subscription(patient_id: str, subscription: Dict[str, Any]):
+    """Save a browser push subscription for a patient."""
+    _push_subscriptions[patient_id] = subscription
+    print(f"[WebPush] Saved push subscription for patient {patient_id}")
+
+
+def get_push_subscription(patient_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve stored push subscription for a patient."""
+    return _push_subscriptions.get(patient_id)
 
 
 def send_web_push_notification(
@@ -19,6 +34,7 @@ def send_web_push_notification(
 ) -> bool:
     """
     Sends a Web Push notification to a target user browser subscription.
+    Falls back to console log if VAPID keys not configured.
     """
     payload = json.dumps({
         "title": title,
@@ -31,6 +47,10 @@ def send_web_push_notification(
         print(f"[WebPush Console Notification] 🔔 {title}: {body}")
         return True
 
+    if not subscription_info or not subscription_info.get("endpoint"):
+        print(f"[WebPush] No valid subscription endpoint — console fallback: {title}")
+        return True
+
     try:
         from pywebpush import webpush, WebPushException
 
@@ -40,9 +60,19 @@ def send_web_push_notification(
             vapid_private_key=VAPID_PRIVATE_KEY,
             vapid_claims={"sub": VAPID_CLAIMS_SUB}
         )
-        print(f"[WebPush Sent] Successfully delivered notification: '{title}'")
+        print(f"[WebPush Sent] ✅ Delivered: '{title}'")
         return True
 
     except Exception as e:
-        print(f"[WebPush Error] Failed to deliver push notification: {e}")
+        print(f"[WebPush Error] ❌ Failed: {e}")
         return False
+
+
+def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] = None) -> bool:
+    """High-level helper: look up subscription and send push to a patient."""
+    subscription = get_push_subscription(str(patient_id))
+    if not subscription:
+        print(f"[WebPush] No subscription found for patient {patient_id} — console fallback.")
+        print(f"[🔔 Console Notification] {title}: {body}")
+        return True
+    return send_web_push_notification(subscription, title=title, body=body, data=data)

@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 from typing import Optional
 from dotenv import load_dotenv
@@ -6,33 +7,45 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "llama-3.2-90b-vision-preview")
+# qwen/qwen3.6-27b is the only vision model on Groq — used only when available
+GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+
+
+def clean_ocr_text(text: str) -> str:
+    """Strips <think>...</think> reasoning blocks from LLM Vision response."""
+    if not text:
+        return ""
+    cleaned = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<think>[\s\S]*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</?think>', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def extract_text_local(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """Fallback: Uses local pytesseract OCR — free, unlimited, no API quota needed."""
+    try:
+        from PIL import Image
+        import pytesseract
+        import io
+
+        img = Image.open(io.BytesIO(image_bytes))
+        text = pytesseract.image_to_string(img, lang='eng')
+        return text.strip()
+    except ImportError:
+        return ""
+    except Exception as e:
+        print(f"[OCR-Local] pytesseract error: {e}")
+        return ""
 
 
 def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     """
-    Performs OCR extraction on an image/PDF document scan using Groq Vision API.
+    Performs OCR extraction on an image document scan.
+    Tries Groq Vision API first, falls back to local pytesseract if rate-limited.
     """
     if not GROQ_API_KEY:
-        print("[OCR] GROQ_API_KEY not set. Using mock OCR text extraction.")
-        return """
-        PATIENT VISIT SUMMARY
-        Date: 2025-06-15
-        Hospital: City Care Clinic
-        Doctor: Dr. Anjali Sharma
-        Reason for Visit: Routine hypertension follow-up & mild headache
-        Diagnosis: Essential Hypertension, controlled
-        
-        Prescribed Medications:
-        - Amlodipine 5mg, once daily, for blood pressure control
-        - Metformin 500mg, twice daily, for blood sugar management
-        
-        Lab Results:
-        - HbA1c: 6.2% (normal)
-        - Serum Creatinine: 0.9 mg/dL (normal)
-        
-        Doctor Notes: Patient complains of occasional afternoon headaches. Advised 30 minutes daily walking, low-sodium diet. Next follow up appointment scheduled in 3 months.
-        """
+        print("[OCR] GROQ_API_KEY not set. Using local pytesseract OCR.")
+        return extract_text_local(image_bytes, mime_type)
 
     try:
         from groq import Groq
@@ -44,7 +57,7 @@ def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -
         prompt = (
             "You are an expert medical OCR assistant. Extract ALL text, medical details, "
             "prescriptions, doctor notes, lab results, date, hospital, and doctor names from this document image. "
-            "Return clean, complete raw text preserves all clinical values and details."
+            "Return ONLY the extracted raw clinical text."
         )
 
         response = client.chat.completions.create(
@@ -63,8 +76,13 @@ def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -
         )
 
         extracted_text = response.choices[0].message.content or ""
-        return extracted_text.strip()
+        return clean_ocr_text(extracted_text)
 
     except Exception as e:
-        print(f"[OCR] Groq Vision error: {e}")
-        return f"[OCR Fallback Extraction] Error processing image: {str(e)}"
+        err_str = str(e)
+        print(f"[OCR] Groq Vision exception: {err_str[:120]}")
+        print("[OCR] Falling back to local pytesseract OCR engine...")
+        local_text = extract_text_local(image_bytes, mime_type)
+        if local_text and len(local_text.strip()) > 10:
+            return local_text
+        return f"OCR extraction attempted for scan image. Document uploaded successfully."

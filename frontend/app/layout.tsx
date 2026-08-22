@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import HeaderBar from '@/components/HeaderBar';
 
 export const metadata: Metadata = {
-  title: 'HealthVault | AI Personal Health Record Assistant',
+  title: 'HealthVault | AI Personal Health OS',
   description: 'Multimodal clinical history, OCR document extraction, and hybrid AI Q&A health assistant.',
 };
 
@@ -13,15 +14,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-[#070a11] text-gray-100 antialiased flex flex-col">
-        <Navbar />
-        <main className="flex-1 max-w-[96%] xl:max-w-[1650px] w-full mx-auto px-4 lg:px-8 py-6">
-          {children}
-        </main>
-        <footer className="border-t border-gray-800/80 py-6 text-center text-xs text-gray-500">
-          <p>© 2026 HealthVault Personal Health Platform. Powered by FastAPI, Supabase, Groq & ChromaDB.</p>
-        </footer>
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-[#070a11] text-gray-100 antialiased flex flex-row">
+        {/* Left Fixed Sidebar Workspace Navigation */}
+        <Sidebar />
+
+        {/* Right Main Content Workspace */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#070a11]">
+          {/* Top Header Bar with Breadcrumbs, Search, Notifications, Profile Avatar */}
+          <HeaderBar />
+
+          {/* Main Dashboard Pages */}
+          <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {children}
+          </main>
+
+          {/* Footer */}
+          <footer className="border-t border-gray-800/60 py-5 text-center text-xs text-gray-500 bg-[#080d16]">
+            <p>© 2026 HealthVault Personal Health Platform. Powered by FastAPI, Supabase, Groq & ChromaDB.</p>
+          </footer>
+        </div>
       </body>
     </html>
   );

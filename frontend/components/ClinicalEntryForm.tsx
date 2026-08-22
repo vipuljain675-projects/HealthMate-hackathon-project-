@@ -42,6 +42,17 @@ export default function ClinicalEntryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const getAuthToken = () => {
+    try {
+      const raw = localStorage.getItem('user_session');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.auth_token) return parsed.auth_token;
+      }
+    } catch (e) {}
+    return 'mock_token_dev';
+  };
+
   // Handle OCR File Upload
   const handleOcrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +69,7 @@ export default function ClinicalEntryForm() {
       const res = await fetch('http://localhost:8000/api/entry/ocr', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer mock_token_dev'
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: formData
       });
@@ -98,7 +109,7 @@ export default function ClinicalEntryForm() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer mock_token_dev'
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify(payload)
       });

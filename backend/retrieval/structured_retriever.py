@@ -40,7 +40,25 @@ def retrieve_structured_patient_facts(
             "diagnosis": v.diagnosis,
             "notes": v.notes,
             "original_file_url": v.original_file_url,
-            "source_type": v.source_type
+            "source_type": v.source_type,
+            "labs": [
+                {
+                    "id": str(l.id),
+                    "test_name": l.test_name,
+                    "value": l.value,
+                    "flag": l.flag
+                }
+                for l in labs if l.visit_id == v.id
+            ],
+            "medications": [
+                {
+                    "id": str(m.id),
+                    "drug_name": m.drug_name,
+                    "dosage": m.dosage,
+                    "frequency": m.frequency
+                }
+                for m in medications if m.visit_id == v.id
+            ]
         }
         for v in visits
     ]

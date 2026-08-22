@@ -21,12 +21,17 @@ from db.postgres_client import (
 )
 from db.vector_client import add_visit_note_embedding
 from auth.verify_supabase_token import verify_supabase_token
-from ingestion.ocr_extractor import extract_text_from_image
+from ingestion.ocr_extractor import extract_text_from_image, clean_ocr_text
 from ingestion.entity_structurer import parse_raw_text_to_entities
 from ingestion.file_storage import upload_scan_file
 from retrieval.structured_retriever import retrieve_structured_patient_facts
 from generation.timeline_summarizer import generate_timeline_summary
 from generation.qa_generator import answer_patient_question
+from notifications.notification_sender import (
+    save_push_subscription,
+    notify_patient,
+    VAPID_PUBLIC_KEY
+)
 
 router = APIRouter(prefix="/api", tags=["Personal Health API"])
 
@@ -39,6 +44,8 @@ class MedicationItemSchema(BaseModel):
     dosage: Optional[str] = None
     frequency: Optional[str] = None
     purpose: Optional[str] = None
+    duration_days: Optional[str] = None
+    notes: Optional[str] = None
     status: str = "active"
 
 
@@ -78,8 +85,59 @@ class AppointmentCreateRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class PushSubscriptionRequest(BaseModel):
+    endpoint: str
+    keys: dict
+    expirationTime: Optional[str] = None
+
+
 # ==========================================
-# Patient Profile Endpoint
+# Web Push Notification Endpoints
+# ==========================================
+@router.get("/vapid-public-key")
+def get_vapid_public_key():
+    """Returns the VAPID public key for client-side push subscription setup."""
+    return {"vapid_public_key": VAPID_PUBLIC_KEY}
+
+
+@router.post("/push-subscribe")
+def subscribe_to_push(
+    subscription: PushSubscriptionRequest,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    """Saves a browser's push subscription for this patient."""
+    patient = get_or_create_patient(db, auth_user_id)
+    save_push_subscription(
+        patient_id=str(patient.id),
+        subscription={"endpoint": subscription.endpoint, "keys": subscription.keys}
+    )
+    return {"success": True, "message": f"Push subscription saved for patient {patient.id}"}
+
+
+@router.post("/push-test")
+def send_test_push(
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    """Sends an immediate test push notification to verify the setup."""
+    patient = get_or_create_patient(db, auth_user_id)
+    success = notify_patient(
+        patient_id=str(patient.id),
+        title="🏥 HealthVault Test Notification",
+        body="Your push notifications are working! Medicine reminders will appear here.",
+        data={"type": "test"}
+    )
+    return {"success": success, "message": "Test notification sent!"}
+
+
+class UserProfileUpdateRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+
+
+# ==========================================
+# Patient Profile Endpoints
 # ==========================================
 @router.get("/me")
 def get_current_patient_profile(
@@ -93,6 +151,27 @@ def get_current_patient_profile(
         "name": patient.name,
         "email": patient.email,
         "created_at": str(patient.created_at)
+    }
+
+
+@router.post("/me")
+def update_current_patient_profile(
+    payload: UserProfileUpdateRequest,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id, name=payload.name, email=payload.email)
+    if payload.name:
+        patient.name = payload.name
+    if payload.email:
+        patient.email = payload.email
+    db.commit()
+    db.refresh(patient)
+    return {
+        "id": str(patient.id),
+        "auth_user_id": patient.auth_user_id,
+        "name": patient.name,
+        "email": patient.email
     }
 
 
@@ -133,6 +212,8 @@ def list_medications(
             "dosage": m.dosage,
             "frequency": m.frequency,
             "purpose": m.purpose,
+            "duration_days": m.duration_days,
+            "notes": m.notes,
             "status": m.status,
             "started_on": str(m.started_on) if m.started_on else None,
             "visit_id": str(m.visit_id) if m.visit_id else None
@@ -176,6 +257,8 @@ def create_manual_entry(
             dosage=med.dosage,
             frequency=med.frequency,
             purpose=med.purpose,
+            duration_days=med.duration_days,
+            notes=med.notes,
             status=med.status,
             started_on=payload.date
         )
@@ -245,35 +328,69 @@ async def process_ocr_scan_upload(
     except Exception:
         visit_date = date.today()
 
-    # 4. Save Visit in SQL with original_file_url
-    visit = create_visit(
-        db,
-        patient_id=patient.id,
-        visit_date=visit_date,
-        hospital=structured_data.visit.hospital,
-        doctor_name=structured_data.visit.doctor_name,
-        reason=structured_data.visit.reason,
-        diagnosis=structured_data.visit.diagnosis,
-        notes=structured_data.free_text_notes or structured_data.visit.notes,
-        original_file_url=file_url,
-        source_type="scan"
-    )
+    # 4. Check if identical visit already exists for patient to prevent duplicates
+    raw_notes = structured_data.free_text_notes or structured_data.visit.notes or raw_ocr_text
+    clean_notes = clean_ocr_text(raw_notes)
 
-    # 5. Save Medications in SQL
-    created_meds = []
-    for med in structured_data.medications:
-        m = create_medication(
+    from db.models import Visit, Medication
+
+    existing_visit = db.query(Visit).filter(
+        Visit.patient_id == patient.id,
+        Visit.date == visit_date,
+        Visit.doctor_name == structured_data.visit.doctor_name,
+        Visit.hospital == structured_data.visit.hospital
+    ).first()
+
+    if existing_visit:
+        visit = existing_visit
+        visit.diagnosis = structured_data.visit.diagnosis or visit.diagnosis
+        visit.reason = structured_data.visit.reason or visit.reason
+        visit.notes = clean_notes or visit.notes
+        visit.original_file_url = file_url or visit.original_file_url
+        db.commit()
+    else:
+        visit = create_visit(
             db,
             patient_id=patient.id,
-            visit_id=visit.id,
-            drug_name=med.drug_name,
-            dosage=med.dosage,
-            frequency=med.frequency,
-            purpose=med.purpose,
-            status=med.status,
-            started_on=visit_date
+            visit_date=visit_date,
+            hospital=structured_data.visit.hospital,
+            doctor_name=structured_data.visit.doctor_name,
+            reason=structured_data.visit.reason,
+            diagnosis=structured_data.visit.diagnosis,
+            notes=clean_notes,
+            original_file_url=file_url,
+            source_type="scan"
         )
-        created_meds.append(m)
+
+    # 5. Save Medications in SQL with deduplication
+    created_meds = []
+    for med in structured_data.medications:
+        existing_med = db.query(Medication).filter(
+            Medication.patient_id == patient.id,
+            Medication.drug_name == med.drug_name
+        ).first()
+
+        if existing_med:
+            existing_med.dosage = med.dosage or existing_med.dosage
+            existing_med.frequency = med.frequency or existing_med.frequency
+            existing_med.duration_days = getattr(med, "duration_days", None) or existing_med.duration_days
+            existing_med.status = med.status
+            db.commit()
+            created_meds.append(existing_med)
+        else:
+            m = create_medication(
+                db,
+                patient_id=patient.id,
+                visit_id=visit.id,
+                drug_name=med.drug_name,
+                dosage=med.dosage,
+                frequency=med.frequency,
+                purpose=med.purpose,
+                duration_days=getattr(med, "duration_days", None),
+                status=med.status,
+                started_on=visit_date
+            )
+            created_meds.append(m)
 
     # 6. Save Labs in SQL
     created_labs = []
@@ -290,7 +407,7 @@ async def process_ocr_scan_upload(
         created_labs.append(l)
 
     # 7. Sync free-text notes into ChromaDB vector store
-    note_to_embed = structured_data.free_text_notes or raw_ocr_text
+    note_to_embed = clean_ocr_text(structured_data.free_text_notes or raw_ocr_text)
     if note_to_embed:
         add_visit_note_embedding(
             patient_id=patient.id,
@@ -332,6 +449,7 @@ def list_reminders(
             "dosage": r.dosage,
             "time_of_day": r.time_of_day,
             "frequency": r.frequency,
+            "notes": r.notes,
             "active": r.active
         }
         for r in reminders
@@ -419,3 +537,132 @@ def ask_health_assistant(
         user_question=payload.question.strip()
     )
     return result
+
+
+# ==========================================
+# Medication CRUD — Edit & Delete
+# ==========================================
+class MedicationUpdateRequest(BaseModel):
+    drug_name: Optional[str] = None
+    dosage: Optional[str] = None
+    frequency: Optional[str] = None
+    purpose: Optional[str] = None
+    duration_days: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.put("/medications/{medication_id}")
+def update_medication(
+    medication_id: str,
+    payload: MedicationUpdateRequest,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Medication
+    med = db.query(Medication).filter(
+        Medication.id == uuid.UUID(medication_id),
+        Medication.patient_id == patient.id
+    ).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medication not found")
+
+    if payload.drug_name is not None: med.drug_name = payload.drug_name
+    if payload.dosage is not None: med.dosage = payload.dosage
+    if payload.frequency is not None: med.frequency = payload.frequency
+    if payload.purpose is not None: med.purpose = payload.purpose
+    if payload.duration_days is not None: med.duration_days = payload.duration_days
+    if payload.notes is not None: med.notes = payload.notes
+    if payload.status is not None: med.status = payload.status
+
+    db.commit()
+    db.refresh(med)
+    return {
+        "id": str(med.id), "drug_name": med.drug_name, "dosage": med.dosage,
+        "frequency": med.frequency, "purpose": med.purpose, "duration_days": med.duration_days,
+        "notes": med.notes, "status": med.status,
+        "started_on": str(med.started_on) if med.started_on else None
+    }
+
+
+@router.delete("/medications/{medication_id}")
+def delete_medication(
+    medication_id: str,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Medication
+    med = db.query(Medication).filter(
+        Medication.id == uuid.UUID(medication_id),
+        Medication.patient_id == patient.id
+    ).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    db.delete(med)
+    db.commit()
+    return {"status": "deleted", "medication_id": medication_id}
+
+
+# ==========================================
+# Reminder CRUD — Edit, Toggle & Delete
+# ==========================================
+class ReminderUpdateRequest(BaseModel):
+    medicine_name: Optional[str] = None
+    dosage: Optional[str] = None
+    time_of_day: Optional[str] = None
+    frequency: Optional[str] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None
+
+
+@router.put("/reminders/{reminder_id}")
+def update_reminder(
+    reminder_id: str,
+    payload: ReminderUpdateRequest,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Reminder
+    r = db.query(Reminder).filter(
+        Reminder.id == uuid.UUID(reminder_id),
+        Reminder.patient_id == patient.id
+    ).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+
+    if payload.medicine_name is not None: r.medicine_name = payload.medicine_name
+    if payload.dosage is not None: r.dosage = payload.dosage
+    if payload.time_of_day is not None: r.time_of_day = payload.time_of_day
+    if payload.frequency is not None: r.frequency = payload.frequency
+    if payload.notes is not None: r.notes = payload.notes
+    if payload.active is not None: r.active = payload.active
+
+    db.commit()
+    db.refresh(r)
+    return {
+        "id": str(r.id), "medicine_name": r.medicine_name, "dosage": r.dosage,
+        "time_of_day": r.time_of_day, "frequency": r.frequency,
+        "notes": r.notes, "active": r.active
+    }
+
+
+@router.delete("/reminders/{reminder_id}")
+def delete_reminder(
+    reminder_id: str,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Reminder
+    r = db.query(Reminder).filter(
+        Reminder.id == uuid.UUID(reminder_id),
+        Reminder.patient_id == patient.id
+    ).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    db.delete(r)
+    db.commit()
+    return {"status": "deleted", "reminder_id": reminder_id}

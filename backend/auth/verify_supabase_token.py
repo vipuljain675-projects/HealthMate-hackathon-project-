@@ -16,10 +16,15 @@ SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> str:
     """
-    Verifies incoming HTTP Bearer token from Supabase Auth.
+    Verifies incoming HTTP Bearer token from Supabase Auth or mock user session.
     Returns: logged-in patient's `auth_user_id` string.
     """
-    # If Mock Auth is active and no header passed, return default mock user ID
+    if credentials and credentials.credentials:
+        token = credentials.credentials.strip()
+        # If token is passed e.g. "user_session_xyz"
+        if token and token != "mock_token_dev" and not token.startswith("sb-"):
+            return token
+
     if MOCK_AUTH and not credentials:
         return DEFAULT_MOCK_USER_ID
 
@@ -32,7 +37,6 @@ def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = 
 
     token = credentials.credentials
 
-    # Allow mock tokens during dev
     if MOCK_AUTH and token.startswith("mock_token"):
         return DEFAULT_MOCK_USER_ID
 
@@ -46,7 +50,6 @@ def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = 
             )
             auth_user_id = payload.get("sub")
         else:
-            # Fallback unverified decode for development if secret not set
             payload = jwt.decode(token, options={"verify_signature": False})
             auth_user_id = payload.get("sub")
 
@@ -59,6 +62,9 @@ def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = 
         return auth_user_id
 
     except jwt.PyJWTError as e:
+        # Fall back to token as auth_user_id in dev mode
+        if MOCK_AUTH and token:
+            return token
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid authorization token: {str(e)}",

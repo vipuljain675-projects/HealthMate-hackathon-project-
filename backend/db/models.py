@@ -49,11 +49,13 @@ class Medication(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=True)  # originating visit
+    visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=True)
     drug_name = Column(String, nullable=False)
     dosage = Column(String)              # "5mg"
     frequency = Column(String)           # "once daily"
     purpose = Column(String)             # "for Hypertension"
+    duration_days = Column(String)       # "30 days" / "30" — from prescription
+    notes = Column(Text)                 # extra notes e.g. "take with food"
     status = Column(String, default="active")  # "active" or "discontinued"
     started_on = Column(Date)
 
@@ -87,6 +89,7 @@ class Reminder(Base):
     dosage = Column(String)
     time_of_day = Column(String)         # "08:00"
     frequency = Column(String)           # "daily"
+    notes = Column(Text)                 # e.g. "after breakfast"
     active = Column(Boolean, default=True)
 
     patient = relationship("Patient", back_populates="reminders")

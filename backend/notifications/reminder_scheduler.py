@@ -1,13 +1,13 @@
 from datetime import datetime
 from db.postgres_client import SessionLocal
 from db.models import Reminder
-from notifications.notification_sender import send_web_push_notification
+from notifications.notification_sender import notify_patient
 
 
 def check_due_medicine_reminders():
     """
     Background job triggered by APScheduler every minute.
-    Checks for active reminders due around current HH:MM time.
+    Checks for active reminders due at current HH:MM time and sends push notifications.
     """
     now_time_str = datetime.now().strftime("%H:%M")
     db = SessionLocal()
@@ -18,16 +18,18 @@ def check_due_medicine_reminders():
         ).all()
 
         if reminders:
-            print(f"[ReminderScheduler] Found {len(reminders)} due medicine reminders at {now_time_str}")
+            print(f"[ReminderScheduler] ⏰ {len(reminders)} reminder(s) due at {now_time_str}")
 
         for r in reminders:
             title = f"💊 Medicine Reminder: {r.medicine_name}"
-            body = f"It's time to take your {r.dosage or ''} dose of {r.medicine_name}."
-            print(f"[ReminderScheduler Triggered] Patient {r.patient_id} -> {title} ({body})")
-
-            # In production, fetch patient's web_push_subscription from DB
-            mock_subscription = {"endpoint": "https://push.example.com", "keys": {}}
-            send_web_push_notification(mock_subscription, title=title, body=body)
+            body = f"Time to take your {r.dosage or ''} dose of {r.medicine_name}. {'— ' + r.notes if r.notes else ''}"
+            print(f"[ReminderScheduler] 🔔 Patient {r.patient_id} → {title}")
+            notify_patient(
+                patient_id=str(r.patient_id),
+                title=title,
+                body=body.strip(" —"),
+                data={"type": "medicine_reminder", "reminder_id": str(r.id)}
+            )
 
     except Exception as e:
         print(f"[ReminderScheduler Error] {e}")
