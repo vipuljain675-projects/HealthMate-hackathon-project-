@@ -40,6 +40,8 @@ class ExtractedMedication(BaseModel):
 class ExtractedLab(BaseModel):
     test_name: str
     value: Optional[str] = None
+    unit: Optional[str] = None
+    reference_range: Optional[str] = None
     flag: Optional[str] = "normal"
 
 
@@ -50,18 +52,20 @@ class ExtractedVisit(BaseModel):
     reason: Optional[str] = None
     diagnosis: Optional[str] = None
     notes: Optional[str] = None
+    document_type: Optional[str] = "prescription"  # "prescription", "lab_report", "discharge_summary"
 
 
 class StructuredClinicalExtraction(BaseModel):
     visit: ExtractedVisit
     medications: List[ExtractedMedication] = Field(default_factory=list)
     labs: List[ExtractedLab] = Field(default_factory=list)
-    free_text_notes: str
+    free_text_notes: Optional[str] = Field(default="")
 
 
 def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
     """
     Transforms raw medical text (from OCR or manual input) into structured clinical JSON.
+    Handles prescriptions, lab reports, and discharge summaries.
     """
     if not GROQ_API_KEY:
         print("[EntityStructurer] GROQ_API_KEY not set. Using rule-based/mock parsing.")
@@ -91,56 +95,137 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
         client = Groq(api_key=GROQ_API_KEY)
 
         system_prompt = (
-            "You are a medical data extraction LLM. Extract structured JSON from raw clinical notes/OCR text.\n"
-            "IMPORTANT RULES:\n"
-            "- 'doctor_name': Extract the prescribing doctor from fields like 'Dr.', 'By:', 'Physician:', 'Consultant:', 'Doctor:', 'Referred by:'. "
-            "For prescriptions, this is the doctor who SIGNS the Rx. For lab reports, this may be the referring/ordering doctor.\n"
-            "- 'hospital': Extract clinic/hospital/lab name from header/letterhead. For Lal PathLabs reports, hospital = 'Lal PathLabs'. For Apollo reports, include branch.\n"
-            "- 'date': Use DD-MM-YYYY or YYYY-MM-DD found in the document.\n"
-            "- Do NOT confuse lab technician names with prescribing doctor names.\n"
-            "Respond ONLY with valid JSON matching this exact structure:\n"
+            "You are a medical data extraction LLM. Extract structured JSON from raw clinical notes/OCR text.\n\n"
+            "STEP 1 — DETECT DOCUMENT TYPE:\n"
+            "- If the text contains test names with numeric values, reference ranges, and flags like 'ELEVATED'/'NORMAL'/'LOW', "
+            "it is a LAB REPORT. Set document_type='lab_report'.\n"
+            "- If the text contains drug/medicine names with dosages and frequencies (like 'Tab Amoxicillin 500mg TDS'), "
+            "it is a PRESCRIPTION. Set document_type='prescription'.\n"
+            "- Otherwise, set document_type='discharge_summary'.\n\n"
+            "STEP 2 — EXTRACTION RULES:\n"
+            "- 'doctor_name': The prescribing/signing doctor. Look for 'Dr.', 'Physician:', 'Consultant:', 'Pathologist:'. "
+            "For lab reports, use the pathologist or signing doctor (NOT the technician).\n"
+            "- 'hospital': Clinic/hospital/lab from header/letterhead. 'Dr. Lal PathLabs' → hospital='Dr. Lal PathLabs'.\n"
+            "- 'date': Extract from document. Convert to YYYY-MM-DD format.\n"
+            "- 'reason': For prescriptions use chief complaint. For lab reports, use the test panel name (e.g., 'Lipid Profile Complete').\n"
+            "- 'diagnosis': For prescriptions use the diagnosis. For lab reports, summarize abnormal findings "
+            "(e.g., 'Elevated Total Cholesterol (215), Elevated LDL (141), Borderline High Triglycerides (160)').\n\n"
+            "STEP 3 — MEDICATIONS (prescriptions only):\n"
+            "Extract ALL medicines with drug_name, dosage, frequency, purpose, duration_days.\n"
+            "- 'TDS' = 'three times daily', 'BD' = 'twice daily', 'OD' = 'once daily'\n"
+            "- If duration mentioned as '5 days' or 'x 5 days', set duration_days='5 days'\n\n"
+            "STEP 4 — LAB RESULTS (lab reports):\n"
+            "Extract EVERY test listed. For each test:\n"
+            "- test_name: Full test name (e.g., 'TOTAL CHOLESTEROL', 'TRIGLYCERIDES', 'HDL CHOLESTEROL')\n"
+            "- value: Numeric result with unit (e.g., '215 mg/dL')\n"
+            "- unit: The measurement unit (e.g., 'mg/dL')\n"
+            "- reference_range: Normal range (e.g., 'Desirable: <200')\n"
+            "- flag: 'normal', 'elevated', 'low', 'borderline_high', 'borderline_low'\n"
+            "IMPORTANT: Do NOT skip any test. Include ALL tests even calculated ratios.\n\n"
+            "STEP 5 — NOTES:\n"
+            "- 'notes': Clinical narrative. For prescriptions, include patient complaints and doctor instructions. "
+            "For lab reports, summarize all results in readable form like: "
+            "'Patient presents with Lipid Profile: Total Cholesterol 215 (Elevated), Triglycerides 160 (Borderline High)...'\n"
+            "- 'free_text_notes': A comprehensive narrative summary of the ENTIRE document for vector search. "
+            "Include ALL test results, values, medicines, dates, doctor names — everything useful for AI search.\n\n"
+            "Respond ONLY with valid JSON matching this structure:\n"
             "{\n"
             '  "visit": {\n'
             '    "date": "YYYY-MM-DD",\n'
-            '    "hospital": "Hospital or clinic name or null",\n'
-            '    "doctor_name": "Doctor name or null",\n'
-            '    "reason": "Chief complaint or null",\n'
-            '    "diagnosis": "Diagnosis or null",\n'
-            '    "notes": "Narrative clinical impression or null"\n'
+            '    "hospital": "Hospital/Lab name",\n'
+            '    "doctor_name": "Doctor name",\n'
+            '    "reason": "Chief complaint or test panel name",\n'
+            '    "diagnosis": "Diagnosis or abnormal findings summary",\n'
+            '    "notes": "Clinical narrative summary",\n'
+            '    "document_type": "prescription|lab_report|discharge_summary"\n'
             "  },\n"
             '  "medications": [\n'
             '    {"drug_name": "Name", "dosage": "5mg", "frequency": "once daily", "purpose": "BP", "duration_days": "30 days", "status": "active"}\n'
             "  ],\n"
             '  "labs": [\n'
-            '    {"test_name": "HbA1c", "value": "6.2%", "flag": "normal"}\n'
+            '    {"test_name": "Total Cholesterol", "value": "215 mg/dL", "unit": "mg/dL", "reference_range": "Desirable: <200", "flag": "elevated"}\n'
             "  ],\n"
-            '  "free_text_notes": "Narrative doctor summary for vector search"\n'
+            '  "free_text_notes": "Comprehensive narrative with ALL data from the document for AI search"\n'
             "}"
         )
 
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:3000]}"}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1
-        )
+        models_to_try = [GROQ_MODEL, "groq/compound-mini", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+        last_error = None
 
-        raw_content = response.choices[0].message.content or "{}"
-        json_str = clean_json_string(raw_content)
+        for mod in models_to_try:
+            try:
+                kwargs = {
+                    "model": mod,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:4500]}"}
+                    ],
+                    "temperature": 0.1
+                }
+                if mod in [GROQ_MODEL, "llama-3.3-70b-versatile"]:
+                    kwargs["response_format"] = {"type": "json_object"}
 
-        # Sanitize unescaped newlines and control characters inside JSON strings
-        json_str = re.sub(r'[\r\n\t]', ' ', json_str)
+                response = client.chat.completions.create(**kwargs)
+                raw_content = response.choices[0].message.content or "{}"
+                json_str = clean_json_string(raw_content)
 
-        parsed_dict = json.loads(json_str, strict=False)
-        visit_data = parsed_dict.get("visit", {}) or {}
-        if not visit_data.get("date"):
-            visit_data["date"] = date.today().isoformat()
-        parsed_dict["visit"] = visit_data
+                # Sanitize unescaped newlines and control characters inside JSON strings
+                json_str = re.sub(r'[\r\n\t]', ' ', json_str)
 
-        return StructuredClinicalExtraction(**parsed_dict)
+                parsed_dict = json.loads(json_str, strict=False)
+                visit_data = parsed_dict.get("visit", {}) or {}
+                if not visit_data.get("date"):
+                    visit_data["date"] = date.today().isoformat()
+                parsed_dict["visit"] = visit_data
+
+                # Build a rich free_text_notes if the LLM didn't produce one
+                llm_notes = parsed_dict.get("free_text_notes") or ""
+                if len(llm_notes) < 50:
+                    # Auto-build from structured data + raw text
+                    parts = []
+                    doc_type = visit_data.get("document_type", "prescription")
+                    if visit_data.get("hospital"):
+                        parts.append(f"Document from {visit_data['hospital']}")
+                    if visit_data.get("doctor_name"):
+                        parts.append(f"Doctor: {visit_data['doctor_name']}")
+                    if visit_data.get("date"):
+                        parts.append(f"Date: {visit_data['date']}")
+                    if visit_data.get("diagnosis"):
+                        parts.append(f"Diagnosis: {visit_data['diagnosis']}")
+
+                    # Add lab results to notes
+                    labs_data = parsed_dict.get("labs", [])
+                    if labs_data:
+                        lab_lines = []
+                        for lab in labs_data:
+                            line = f"{lab.get('test_name', '')}: {lab.get('value', '')}"
+                            if lab.get('flag'):
+                                line += f" ({lab['flag']})"
+                            lab_lines.append(line)
+                        parts.append("Lab Results: " + "; ".join(lab_lines))
+
+                    # Add medications to notes
+                    meds_data = parsed_dict.get("medications", [])
+                    if meds_data:
+                        med_lines = []
+                        for med in meds_data:
+                            line = f"{med.get('drug_name', '')} {med.get('dosage', '')}"
+                            if med.get('frequency'):
+                                line += f" {med['frequency']}"
+                            med_lines.append(line)
+                        parts.append("Medications: " + "; ".join(med_lines))
+
+                    # Append raw text excerpt
+                    parts.append(f"Original document text: {raw_text[:800]}")
+                    parsed_dict["free_text_notes"] = ". ".join(parts)
+
+                return StructuredClinicalExtraction(**parsed_dict)
+            except Exception as ex:
+                last_error = ex
+                print(f"[EntityStructurer] Model {mod} error: {ex}. Retrying next model...")
+                continue
+
+        raise last_error or Exception("All structuring models failed.")
 
     except Exception as e:
         print(f"[EntityStructurer] Parsing error: {e}")

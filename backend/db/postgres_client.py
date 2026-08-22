@@ -10,28 +10,22 @@ from db.models import Base, Patient, Visit, Medication, Lab, Reminder, Appointme
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./health_app.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Standardize engine creation for SQLite vs PostgreSQL
-if DATABASE_URL.startswith("sqlite"):
-    engine: Engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
-else:
-    engine: Engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20
-    )
+engine: Engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
-    """Create tables if they don't exist."""
+    """Initialize online Supabase PostgreSQL database tables."""
     Base.metadata.create_all(bind=engine)
+    print("[Database] Connected to online Supabase PostgreSQL database successfully.")
 
 
 def get_db():

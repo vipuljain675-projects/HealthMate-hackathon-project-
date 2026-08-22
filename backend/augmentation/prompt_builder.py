@@ -1,4 +1,12 @@
+import re
 from typing import Dict, Any, List
+
+
+def format_doctor_name(doc: Optional[str]) -> str:
+    if not doc:
+        return "Unknown Doctor"
+    cleaned = re.sub(r'^(dr\.\s*|dr\s+)', '', doc.strip(), flags=re.IGNORECASE).strip()
+    return f"Dr. {cleaned}" if cleaned else "Unknown Doctor"
 
 
 def build_timeline_prompt(patient_name: str, structured_facts: Dict[str, Any]) -> str:
@@ -8,18 +16,30 @@ def build_timeline_prompt(patient_name: str, structured_facts: Dict[str, Any]) -
     labs = structured_facts.get("labs", [])
     appts = structured_facts.get("appointments", [])
 
-    return f"""You are an empathetic medical assistant creating a clean, chronological health timeline for {patient_name}.
+    formatted_visits = []
+    for v in visits:
+        doc_name = format_doctor_name(v.get('doctor'))
+        v_str = f"Date: {v.get('date')}, Doctor: {doc_name}, Location/Lab: {v.get('hospital', 'N/A')}, Reason/Diagnosis: {v.get('diagnosis') or v.get('reason') or 'N/A'}"
+        if v.get('medications'):
+            v_meds = ", ".join([f"{m.get('drug_name')} {m.get('dosage','')}" for m in v['medications']])
+            v_str += f", Prescribed: [{v_meds}]"
+        if v.get('labs'):
+            v_labs = ", ".join([f"{l.get('test_name')}: {l.get('value')} ({l.get('flag')})" for l in v['labs']])
+            v_str += f", Lab Tests: [{v_labs}]"
+        formatted_visits.append(v_str)
 
-Patient Data Summary:
-- Visits ({len(visits)}): {visits}
-- Current & Past Medications ({len(meds)}): {meds}
-- Lab Tests ({len(labs)}): {labs}
-- Upcoming/Past Appointments ({len(appts)}): {appts}
+    visits_text = "\n".join(formatted_visits) if formatted_visits else "No visits recorded."
 
-Instructions:
-1. Summarize the patient's medical story chronologically from oldest to newest.
-2. Clearly highlight major diagnoses, hospital visits, active medications, key lab values, and upcoming appointments.
-3. Keep the tone patient-friendly, easy to read, and clear.
+    return f"""You are a professional medical communicator. Create a clean, 2-3 paragraph markdown summary of the patient's medical timeline for {patient_name}.
+
+PATIENT RECORDS:
+Visits & Consultations:
+{visits_text}
+
+INSTRUCTIONS:
+1. Write a clear, professional, natural narrative of the patient's health history in 2-3 short bulleted sections or paragraphs.
+2. Group the highlights by consultations, active treatment, and diagnostic findings.
+3. DO NOT output code, raw JSON, Python dictionaries, or technical IDs. Output ONLY clean Markdown text.
 """
 
 
@@ -29,93 +49,84 @@ def build_qa_prompt(
     structured_facts: Dict[str, Any],
     vector_notes: List[Dict[str, Any]]
 ) -> str:
-    """Builds an augmented RAG context prompt for answering user health questions."""
+    """Builds a clean, visit-centric RAG context prompt."""
     visits = structured_facts.get("visits", [])
     meds = structured_facts.get("medications", [])
     labs = structured_facts.get("labs", [])
     appts = structured_facts.get("appointments", [])
 
-    # Pre-build human-readable doctor list for easier extraction
-    doctors_seen = list({
-        v.get("doctor") for v in visits if v.get("doctor")
-    })
-    doctors_str = ", ".join(doctors_seen) if doctors_seen else "None recorded"
+    # Group records by visit so each doctor visit has its exact medications and lab tests
+    visit_blocks = []
+    for idx, v in enumerate(visits, 1):
+        v_date = v.get("date", "Unknown date")
+        v_doc = format_doctor_name(v.get("doctor"))
+        v_hosp = v.get("hospital", "Medical facility")
+        v_reason = v.get("reason") or "N/A"
+        v_diag = v.get("diagnosis") or "N/A"
+        v_url = v.get("original_file_url")
 
-    meds_detail_list = []
-    for m in meds:
-        name = m.get("drug_name", "")
-        dosage = m.get("dosage", "")
-        freq = m.get("frequency", "")
-        duration = m.get("duration_days", "")
-        notes = m.get("notes") or m.get("purpose") or ""
-        
-        detail = f"{name} {dosage}".strip()
-        if freq:
-            detail += f" (Frequency: {freq})"
-        if duration:
-            detail += f" (Duration: {duration} days)" if str(duration).isdigit() else f" (Duration: {duration})"
-        if notes:
-            detail += f" [Notes/Instructions: {notes}]"
-        meds_detail_list.append(detail)
+        block = f"--- VISIT RECORD #{idx} ({v_date}) ---\n"
+        block += f"• Date: {v_date}\n"
+        block += f"• Consulting Doctor: {v_doc}\n"
+        block += f"• Hospital/Clinic/Lab: {v_hosp}\n"
+        block += f"• Reason / Panel: {v_reason}\n"
+        block += f"• Diagnosis / Impression: {v_diag}\n"
+        if v_url:
+            block += f"• Document Scan URL: {v_url}\n"
 
-    meds_str = "\n  - ".join(meds_detail_list) if meds_detail_list else "None"
+        v_meds = v.get("medications", [])
+        if v_meds:
+            block += "  [Prescribed Medications in this Visit]:\n"
+            for m in v_meds:
+                block += f"    - {m.get('drug_name')} {m.get('dosage','')}".strip()
+                if m.get('frequency'): block += f" ({m['frequency']})"
+                if m.get('duration_days'): block += f" for {m['duration_days']}"
+                block += "\n"
+        else:
+            block += "  [Prescribed Medications]: None in this visit\n"
 
-    labs_str = ", ".join(
-        f"{l.get('test_name')}: {l.get('value')} ({l.get('flag', '')})"
-        for l in labs
-    ) if labs else "None"
+        v_labs = v.get("labs", [])
+        if v_labs:
+            block += "  [Lab Tests Conducted in this Visit]:\n"
+            for l in v_labs:
+                flag = l.get('flag', 'normal')
+                flag_str = f" ({flag.upper()})" if flag and flag.lower() != 'normal' else ""
+                block += f"    - {l.get('test_name')}: {l.get('value')}{flag_str}\n"
+        else:
+            block += "  [Lab Tests Conducted]: None in this visit\n"
 
-    clean_visits = [
-        {
-            "date": v.get("date"),
-            "doctor": v.get("doctor"),
-            "hospital": v.get("hospital"),
-            "diagnosis": v.get("diagnosis"),
-            "reason": v.get("reason"),
-            "notes": (v.get("notes") or "")[:800],
-            "original_file_url": v.get("original_file_url")
-        }
-        for v in visits
-    ]
+        if v.get("notes"):
+            block += f"  [Clinical Notes]: {v['notes'][:300]}\n"
 
-    notes_str = ""
+        visit_blocks.append(block)
+
+    visits_text = "\n".join(visit_blocks) if visit_blocks else "No visit records found."
+
+    # General Active Meds summary
+    active_meds = [m for m in meds if m.get("status", "active") == "active"]
+    active_meds_text = ", ".join([f"{m.get('drug_name')} {m.get('dosage','')}" for m in active_meds]) if active_meds else "None"
+
+    # Clinical Notes from vector retrieval
+    notes_lines = []
     for idx, n in enumerate(vector_notes, 1):
-        note_text = (n.get("note") or "")[:300]
-        notes_str += f"\nNote #{idx} (Date: {n.get('date')}, Doctor: {n.get('doctor_name')}, Hospital: {n.get('hospital')}):\n\"{note_text}\"\n"
+        note_text = (n.get("note") or "")[:350]
+        n_doc = format_doctor_name(n.get('doctor_name'))
+        notes_lines.append(f"Excerpt #{idx} ({n.get('date', '')}, {n_doc}): \"{note_text}\"")
+    notes_text = "\n".join(notes_lines[:4]) if notes_lines else "None"
 
-    # Ensure notes_str is kept concise
-    notes_str = notes_str[:1200]
+    return f"""PATIENT NAME: {patient_name}
 
-    return f"""You are a helpful, accurate personal health AI assistant for {patient_name}.
+OVERVIEW OF PATIENT DATA:
+- Total Visits: {len(visits)}
+- Active Prescribed Medications: {active_meds_text}
+- Total Lab Tests: {len(labs)}
 
-Answer the patient's question based strictly on their personal medical records provided below.
+DETAILED CLINICAL VISIT RECORDS (BOUND BY CONSULTATION):
+{visits_text}
 
---- QUICK FACTS SUMMARY ---
-- Doctors consulted: {doctors_str}
-- Active medications: {meds_str}
-- Lab results: {labs_str}
-- Upcoming appointments: {len(appts)} scheduled
+RELEVANT CLINICAL NOTES FROM SEARCH:
+{notes_text}
 
---- FULL VISIT RECORDS ---
-{clean_visits}
-
---- FULL MEDICATIONS RECORDS ---
-{meds}
-
---- FULL LAB TEST RECORDS ---
-{labs}
-
---- RELEVANT CLINICAL NOTES ---
-{notes_str if notes_str else "No specific matching clinical notes found."}
-
---- PATIENT QUESTION ---
+USER QUESTION:
 "{user_question}"
-
---- INSTRUCTIONS FOR ANSWERING ---
-1. Provide a direct, reassuring, and precise answer grounded ONLY in the above records.
-2. When answering about doctors, use the 'Doctors consulted' list — ALL doctors listed there are confirmed in records.
-3. If citing a medication, doctor, lab value, or visit, mention the date or doctor name if available.
-4. If the patient asks for their document, original file, prescription scan, report link, or image, ALWAYS include the direct URL (original_file_url) in your answer text so they can click and view/download it directly.
-5. If the answer cannot be found in the provided records, state clearly: "Based on your uploaded medical records, I couldn't find specific information regarding this."
-6. Add a gentle standard disclaimer: "Disclaimer: This information is derived from your personal uploaded medical records and is not a substitute for professional clinical medical advice."
 """

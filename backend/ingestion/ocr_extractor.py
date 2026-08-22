@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import base64
 from typing import Optional
 from dotenv import load_dotenv
@@ -7,8 +8,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-# qwen/qwen3.6-27b is the only vision model on Groq — used only when available
-GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+# Vision models to try in order of preference
+GROQ_VISION_MODELS = [
+    "qwen/qwen3.6-27b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+]
 
 
 def clean_ocr_text(text: str) -> str:
@@ -41,7 +45,8 @@ def extract_text_local(image_bytes: bytes, mime_type: str = "image/jpeg") -> str
 def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     """
     Performs OCR extraction on an image document scan.
-    Tries Groq Vision API first, falls back to local pytesseract if rate-limited.
+    Tries multiple Groq Vision models with retry/backoff, falls back to pytesseract.
+    Always returns the best available text — never a useless placeholder.
     """
     if not GROQ_API_KEY:
         print("[OCR] GROQ_API_KEY not set. Using local pytesseract OCR.")
@@ -55,34 +60,65 @@ def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -
         image_url = f"data:{mime_type};base64,{base64_image}"
 
         prompt = (
-            "You are an expert medical OCR assistant. Extract ALL text, medical details, "
-            "prescriptions, doctor notes, lab results, date, hospital, and doctor names from this document image. "
-            "Return ONLY the extracted raw clinical text."
+            "You are an expert medical OCR assistant. Extract ALL text from this medical document image.\n"
+            "IMPORTANT RULES:\n"
+            "- Extract EVERY piece of text visible in the document — headers, patient info, dates, doctor names, lab names.\n"
+            "- For PRESCRIPTIONS: Extract all drug names, dosages, frequencies, duration, and doctor instructions.\n"
+            "- For LAB REPORTS: Extract EVERY test name, result value, unit, reference range, and interpretation/flag.\n"
+            "  Example: 'TOTAL CHOLESTEROL: 215 mg/dL (Desirable: <200) — ELEVATED'\n"
+            "- For DISCHARGE SUMMARIES: Extract diagnosis, procedures, medications on discharge, follow-up instructions.\n"
+            "- Include the hospital/lab name, doctor name, patient name, date, and any ID numbers.\n"
+            "- Return ONLY the extracted raw text. No commentary, no formatting suggestions."
         )
 
-        response = client.chat.completions.create(
-            model=GROQ_VISION_MODEL,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": image_url}},
-                    ],
-                }
-            ],
-            temperature=0.1,
-            max_tokens=1500,
-        )
+        # Try each vision model with retry
+        for model in GROQ_VISION_MODELS:
+            for attempt in range(2):  # 2 attempts per model
+                try:
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {"type": "image_url", "image_url": {"url": image_url}},
+                                ],
+                            }
+                        ],
+                        temperature=0.1,
+                        max_tokens=2500,
+                    )
 
-        extracted_text = response.choices[0].message.content or ""
-        return clean_ocr_text(extracted_text)
+                    extracted_text = response.choices[0].message.content or ""
+                    cleaned = clean_ocr_text(extracted_text)
+
+                    if cleaned and len(cleaned) > 20:
+                        print(f"[OCR] Successfully extracted {len(cleaned)} chars using {model}")
+                        return cleaned
+
+                except Exception as e:
+                    err_str = str(e).lower()
+                    print(f"[OCR] {model} attempt {attempt+1} error: {str(e)[:120]}")
+
+                    # If rate limited, wait before retry
+                    if "rate" in err_str or "429" in err_str or "limit" in err_str:
+                        wait_time = 2 * (attempt + 1)
+                        print(f"[OCR] Rate limited. Waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        break  # Non-rate-limit error, try next model
+
+        print("[OCR] All Groq Vision models failed. Falling back to pytesseract...")
 
     except Exception as e:
-        err_str = str(e)
-        print(f"[OCR] Groq Vision exception: {err_str[:120]}")
-        print("[OCR] Falling back to local pytesseract OCR engine...")
-        local_text = extract_text_local(image_bytes, mime_type)
-        if local_text and len(local_text.strip()) > 10:
-            return local_text
-        return f"OCR extraction attempted for scan image. Document uploaded successfully."
+        print(f"[OCR] Groq client initialization error: {str(e)[:120]}")
+
+    # Final fallback: pytesseract — ALWAYS return whatever it captures
+    local_text = extract_text_local(image_bytes, mime_type)
+    if local_text and len(local_text.strip()) > 10:
+        print(f"[OCR] Pytesseract captured {len(local_text)} chars as fallback")
+        return local_text
+
+    # Absolute last resort — still return something useful, not a garbage placeholder
+    return "Medical document scan uploaded. OCR extraction was unable to read text from this image. Please verify the image quality."

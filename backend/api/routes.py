@@ -19,7 +19,7 @@ from db.postgres_client import (
     get_patient_reminders,
     get_patient_appointments
 )
-from db.vector_client import add_visit_note_embedding
+from db.vector_client import add_visit_note_embedding, add_lab_results_embedding, add_medication_embedding
 from auth.verify_supabase_token import verify_supabase_token
 from ingestion.ocr_extractor import extract_text_from_image, clean_ocr_text
 from ingestion.entity_structurer import parse_raw_text_to_entities
@@ -221,6 +221,76 @@ def list_medications(
         for m in meds
     ]
 
+class MedicationCreatePayload(BaseModel):
+    drug_name: str
+    dosage: Optional[str] = None
+    frequency: Optional[str] = None
+    purpose: Optional[str] = None
+    duration_days: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "active"
+    started_on: Optional[date] = None
+
+
+@router.post("/medications")
+def add_medication_directly(
+    payload: MedicationCreatePayload,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    if not payload.drug_name or not payload.drug_name.strip():
+        raise HTTPException(status_code=400, detail="Drug name is required.")
+
+    patient = get_or_create_patient(db, auth_user_id)
+    start_dt = payload.started_on or date.today()
+
+    med = create_medication(
+        db,
+        patient_id=patient.id,
+        drug_name=payload.drug_name.strip(),
+        dosage=payload.dosage,
+        frequency=payload.frequency,
+        purpose=payload.purpose,
+        duration_days=payload.duration_days,
+        notes=payload.notes,
+        status=payload.status,
+        started_on=start_dt
+    )
+
+    # Embed into ChromaDB vector store so AI Chatbot instantly knows about this new medicine!
+    med_dict = [{
+        "drug_name": med.drug_name,
+        "dosage": med.dosage or "",
+        "frequency": med.frequency or "",
+        "purpose": med.purpose or "",
+        "duration_days": med.duration_days or ""
+    }]
+    add_medication_embedding(
+        patient_id=patient.id,
+        visit_id=med.id,
+        medications=med_dict,
+        doctor_name="Doctor Direct Advice",
+        hospital="Manual Entry",
+        visit_date=str(start_dt)
+    )
+
+    return {
+        "status": "success",
+        "message": "Medication added successfully",
+        "medication": {
+            "id": str(med.id),
+            "drug_name": med.drug_name,
+            "dosage": med.dosage,
+            "frequency": med.frequency,
+            "purpose": med.purpose,
+            "duration_days": med.duration_days,
+            "notes": med.notes,
+            "status": med.status,
+            "started_on": str(med.started_on) if med.started_on else None
+        }
+    }
+
+
 
 # ==========================================
 # Entry Ingestion: Manual Clinical Form
@@ -278,12 +348,42 @@ def create_manual_entry(
         )
         created_labs.append(l)
 
-    # 4. Sync free-text notes into ChromaDB vector store
+    # 4. Sync into ChromaDB vector store
     if payload.notes:
         add_visit_note_embedding(
             patient_id=patient.id,
             visit_id=visit.id,
             notes=payload.notes,
+            doctor_name=payload.doctor_name,
+            hospital=payload.hospital,
+            visit_date=str(payload.date)
+        )
+
+    # 4b. Lab results embedding
+    if created_labs:
+        lab_dicts = [
+            {"test_name": l.test_name, "value": l.value, "flag": l.flag}
+            for l in created_labs
+        ]
+        add_lab_results_embedding(
+            patient_id=patient.id,
+            visit_id=visit.id,
+            labs=lab_dicts,
+            doctor_name=payload.doctor_name,
+            hospital=payload.hospital,
+            visit_date=str(payload.date)
+        )
+
+    # 4c. Medications embedding
+    if created_meds:
+        med_dicts = [
+            {"drug_name": m.drug_name, "dosage": m.dosage, "frequency": m.frequency, "purpose": m.purpose, "duration_days": m.duration_days}
+            for m in created_meds
+        ]
+        add_medication_embedding(
+            patient_id=patient.id,
+            visit_id=visit.id,
+            medications=med_dicts,
             doctor_name=payload.doctor_name,
             hospital=payload.hospital,
             visit_date=str(payload.date)
@@ -331,14 +431,18 @@ async def process_ocr_scan_upload(
     # 4. Check if identical visit already exists for patient to prevent duplicates
     raw_notes = structured_data.free_text_notes or structured_data.visit.notes or raw_ocr_text
     clean_notes = clean_ocr_text(raw_notes)
+    doc_type = getattr(structured_data.visit, 'document_type', 'prescription') or 'prescription'
 
-    from db.models import Visit, Medication
+    from db.models import Visit, Medication, Lab
 
+    # Include source_type/doc_type in duplicate check so a lab report and prescription
+    # from the same hospital on the same date don't collide
     existing_visit = db.query(Visit).filter(
         Visit.patient_id == patient.id,
         Visit.date == visit_date,
         Visit.doctor_name == structured_data.visit.doctor_name,
-        Visit.hospital == structured_data.visit.hospital
+        Visit.hospital == structured_data.visit.hospital,
+        Visit.source_type == f"scan_{doc_type}"
     ).first()
 
     if existing_visit:
@@ -359,7 +463,7 @@ async def process_ocr_scan_upload(
             diagnosis=structured_data.visit.diagnosis,
             notes=clean_notes,
             original_file_url=file_url,
-            source_type="scan"
+            source_type=f"scan_{doc_type}"
         )
 
     # 5. Save Medications in SQL with deduplication
@@ -374,7 +478,9 @@ async def process_ocr_scan_upload(
             existing_med.dosage = med.dosage or existing_med.dosage
             existing_med.frequency = med.frequency or existing_med.frequency
             existing_med.duration_days = getattr(med, "duration_days", None) or existing_med.duration_days
+            existing_med.purpose = med.purpose or existing_med.purpose
             existing_med.status = med.status
+            existing_med.visit_id = visit.id  # Link to latest visit
             db.commit()
             created_meds.append(existing_med)
         else:
@@ -392,21 +498,35 @@ async def process_ocr_scan_upload(
             )
             created_meds.append(m)
 
-    # 6. Save Labs in SQL
+    # 6. Save Labs in SQL with deduplication per visit
     created_labs = []
     for lab in structured_data.labs:
-        l = create_lab(
-            db,
-            patient_id=patient.id,
-            visit_id=visit.id,
-            test_name=lab.test_name,
-            value=lab.value,
-            flag=lab.flag,
-            lab_date=visit_date
-        )
-        created_labs.append(l)
+        # Deduplicate labs by test_name within the same visit
+        existing_lab = db.query(Lab).filter(
+            Lab.patient_id == patient.id,
+            Lab.visit_id == visit.id,
+            Lab.test_name == lab.test_name
+        ).first()
 
-    # 7. Sync free-text notes into ChromaDB vector store
+        if existing_lab:
+            existing_lab.value = lab.value or existing_lab.value
+            existing_lab.flag = lab.flag or existing_lab.flag
+            db.commit()
+            created_labs.append(existing_lab)
+        else:
+            l = create_lab(
+                db,
+                patient_id=patient.id,
+                visit_id=visit.id,
+                test_name=lab.test_name,
+                value=lab.value,
+                flag=lab.flag,
+                lab_date=visit_date
+            )
+            created_labs.append(l)
+
+    # 7. Sync into ChromaDB vector store — create MULTIPLE embeddings for rich search
+    # 7a. Visit notes embedding (clinical narrative)
     note_to_embed = clean_ocr_text(structured_data.free_text_notes or raw_ocr_text)
     if note_to_embed:
         add_visit_note_embedding(
@@ -418,11 +538,52 @@ async def process_ocr_scan_upload(
             visit_date=str(visit_date)
         )
 
+    # 7b. Lab results embedding (structured lab data → searchable text)
+    if created_labs:
+        lab_dicts = [
+            {
+                "test_name": getattr(l, 'test_name', '') if hasattr(l, 'test_name') else l.get('test_name', ''),
+                "value": getattr(l, 'value', '') if hasattr(l, 'value') else l.get('value', ''),
+                "flag": getattr(l, 'flag', 'normal') if hasattr(l, 'flag') else l.get('flag', 'normal'),
+            }
+            for l in created_labs
+        ]
+        add_lab_results_embedding(
+            patient_id=patient.id,
+            visit_id=visit.id,
+            labs=lab_dicts,
+            doctor_name=structured_data.visit.doctor_name,
+            hospital=structured_data.visit.hospital,
+            visit_date=str(visit_date)
+        )
+
+    # 7c. Medications embedding (structured med data → searchable text)
+    if created_meds:
+        med_dicts = [
+            {
+                "drug_name": getattr(m, 'drug_name', '') if hasattr(m, 'drug_name') else m.get('drug_name', ''),
+                "dosage": getattr(m, 'dosage', '') if hasattr(m, 'dosage') else m.get('dosage', ''),
+                "frequency": getattr(m, 'frequency', '') if hasattr(m, 'frequency') else m.get('frequency', ''),
+                "purpose": getattr(m, 'purpose', '') if hasattr(m, 'purpose') else m.get('purpose', ''),
+                "duration_days": getattr(m, 'duration_days', '') if hasattr(m, 'duration_days') else m.get('duration_days', ''),
+            }
+            for m in created_meds
+        ]
+        add_medication_embedding(
+            patient_id=patient.id,
+            visit_id=visit.id,
+            medications=med_dicts,
+            doctor_name=structured_data.visit.doctor_name,
+            hospital=structured_data.visit.hospital,
+            visit_date=str(visit_date)
+        )
+
     return {
         "status": "success",
         "message": "OCR document processed and ingested successfully",
         "file_url": file_url,
         "visit_id": str(visit.id),
+        "document_type": doc_type,
         "raw_text_snippet": raw_ocr_text[:300],
         "extracted_entities": {
             "visit": structured_data.visit.model_dump(),
