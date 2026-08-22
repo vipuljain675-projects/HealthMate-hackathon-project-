@@ -65,7 +65,7 @@ export default function HealthTimelinePage() {
   }, []);
 
   const visits = data?.timeline_events?.visits || [];
-  const patient = data?.patient || { name: 'Rajesh Kumar' };
+  const patient = data?.patient || { name: 'Vipul Jain' };
 
   // Filter visits by search query (doctor, hospital, diagnosis, reason)
   const filteredVisits = visits.filter((v: any) => {

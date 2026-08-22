@@ -30,17 +30,20 @@ export default function AuthPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
 
-  // Clear stale sessions that used old timestamp-based tokens (pre-fix)
-  // These tokens look like: mock_user_vipul_jain_1787388797410
+  // Load remembered email on mount if user previously logged out
   useEffect(() => {
     try {
+      const savedEmail = localStorage.getItem('remembered_email');
+      if (savedEmail) {
+        setEmail(savedEmail);
+      }
+      
+      // Clear stale timestamped sessions
       const raw = localStorage.getItem('user_session');
       if (raw) {
         const session = JSON.parse(raw);
-        // Old tokens had a long numeric timestamp at the end
         if (session?.auth_token && /\d{13}$/.test(session.auth_token)) {
           localStorage.removeItem('user_session');
-          console.log('[Auth] Cleared stale timestamped session — please re-login');
         }
       }
     } catch (_) {}
@@ -50,9 +53,12 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoggingIn(true);
 
-    const patientName = name.trim() || (authMode === 'signup' ? 'New Patient' : 'Rajesh Kumar');
-    const patientEmail = email.trim() || (authMode === 'signup' ? 'patient@example.com' : 'rajesh.kumar@example.com');
-    // IMPORTANT: Use stable token based on email so patient record persists across logins
+    const patientEmail = email.trim();
+    if (!patientEmail) return;
+
+    const patientName = name.trim() || (authMode === 'signup' ? 'New Patient' : patientEmail.split('@')[0]);
+    
+    // Stable token based on email so patient record persists across logins
     const stableKey = patientEmail.toLowerCase().replace(/[^a-z0-9]/g, '_');
     const authToken = `mock_user_${stableKey}`;
 
@@ -67,6 +73,8 @@ export default function AuthPage() {
 
     try {
       localStorage.setItem('user_session', JSON.stringify(userSession));
+      // Save remembered_email so returning via Logout pre-fills email
+      localStorage.setItem('remembered_email', patientEmail);
       
       // Register or update profile in live backend Supabase Postgres DB
       await fetch('http://localhost:8000/api/me', {
@@ -127,7 +135,9 @@ export default function AuthPage() {
               {authMode === 'signin' ? 'Welcome Back to' : 'Create Your'} <span className="gradient-text">HealthVault</span>
             </h1>
             <p className="text-xs text-gray-400 leading-relaxed">
-              Sign in to access your unified medical timeline, AI OCR scan extractions, and natural language medical Q&A.
+              {authMode === 'signin' 
+                ? 'Sign in with your email and password to access your patient workspace.'
+                : 'Create a new account to unify your medical records, OCR scans, and AI health timeline.'}
             </p>
           </div>
 
@@ -145,7 +155,7 @@ export default function AuthPage() {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                Sign In
+                Sign In / Login
               </button>
               <button
                 type="button"
@@ -156,7 +166,7 @@ export default function AuthPage() {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                Create Account
+                Sign Up
               </button>
             </div>
 
@@ -168,22 +178,26 @@ export default function AuthPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
-                  <input
-                    type="text"
-                    placeholder={authMode === 'signup' ? "e.g. Vipul Jain" : "e.g. Rajesh Kumar"}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
-                    required
-                  />
+              {authMode === 'signup' && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                    <input
+                      type="text"
+                      name="name"
+                      autoComplete="name"
+                      placeholder="e.g. Vipul Jain"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                      required={authMode === 'signup'}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Email Address</label>
@@ -191,6 +205,8 @@ export default function AuthPage() {
                   <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="username"
                     placeholder="e.g. user@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -200,30 +216,32 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Age</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 35 Yrs"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
-                  />
+              {authMode === 'signup' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Age</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 35 Yrs"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Gender</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Gender</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">Password</label>
@@ -231,6 +249,8 @@ export default function AuthPage() {
                   <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
                   <input
                     type="password"
+                    name="password"
+                    autoComplete={authMode === 'signup' ? "new-password" : "current-password"}
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -248,11 +268,11 @@ export default function AuthPage() {
                 {isLoggingIn ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Signing in...</span>
+                    <span>{authMode === 'signin' ? 'Authenticating...' : 'Creating Account...'}</span>
                   </>
                 ) : (
                   <>
-                    <span>{authMode === 'signin' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
+                    <span>{authMode === 'signin' ? 'Login to Workspace' : 'Sign Up & Create Account'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

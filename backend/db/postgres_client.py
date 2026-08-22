@@ -43,21 +43,33 @@ def get_db():
         db.close()
 
 
-# ==========================================
-# Patient Operations
-# ==========================================
-def get_or_create_patient(db: Session, auth_user_id: str, name: str = "Rajesh Kumar", email: Optional[str] = None) -> Patient:
+def get_or_create_patient(db: Session, auth_user_id: str, name: Optional[str] = None, email: Optional[str] = None) -> Patient:
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
+    
+    # Derive clean default name if none provided
+    derived_name = name or (email.split('@')[0].capitalize() if email else "Patient Profile")
+    if derived_name == "Rajesh Kumar":
+        derived_name = "Vipul Jain"
+
     if not patient:
         patient = Patient(
             id=uuid.uuid4(),
             auth_user_id=auth_user_id,
-            name=name,
+            name=derived_name,
             email=email or f"{auth_user_id}@example.com"
         )
         db.add(patient)
         db.commit()
         db.refresh(patient)
+    else:
+        # Update existing generic name if a specific real name is provided
+        if name and (patient.name in ["Rajesh Kumar", "Patient Profile", "demo-patient-auth-id-123"] or not patient.name):
+            patient.name = name
+            if email:
+                patient.email = email
+            db.commit()
+            db.refresh(patient)
+            
     return patient
 
 

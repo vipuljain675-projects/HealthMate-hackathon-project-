@@ -124,13 +124,17 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:3000]}"}
             ],
+            response_format={"type": "json_object"},
             temperature=0.1
         )
 
         raw_content = response.choices[0].message.content or "{}"
         json_str = clean_json_string(raw_content)
 
-        parsed_dict = json.loads(json_str)
+        # Sanitize unescaped newlines and control characters inside JSON strings
+        json_str = re.sub(r'[\r\n\t]', ' ', json_str)
+
+        parsed_dict = json.loads(json_str, strict=False)
         visit_data = parsed_dict.get("visit", {}) or {}
         if not visit_data.get("date"):
             visit_data["date"] = date.today().isoformat()

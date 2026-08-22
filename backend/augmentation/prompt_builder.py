@@ -23,20 +23,6 @@ Instructions:
 """
 
 
-def _summarize_visits(visits: list) -> str:
-    """Builds a human-readable summary of all doctor visits for the prompt."""
-    if not visits:
-        return "No visits recorded."
-    lines = []
-    for v in visits:
-        doc = v.get("doctor") or "Unknown Doctor"
-        hosp = v.get("hospital") or "Unknown Hospital"
-        date = v.get("date") or "Unknown Date"
-        diag = v.get("diagnosis") or ""
-        lines.append(f"  - {date}: Dr. {doc} at {hosp}" + (f" — Diagnosis: {diag}" if diag else ""))
-    return "\n".join(lines)
-
-
 def build_qa_prompt(
     patient_name: str,
     user_question: str,
@@ -55,19 +41,50 @@ def build_qa_prompt(
     })
     doctors_str = ", ".join(doctors_seen) if doctors_seen else "None recorded"
 
-    meds_str = ", ".join(
-        f"{m.get('drug_name')} {m.get('dosage')} ({m.get('frequency')})"
-        for m in meds
-    ) if meds else "None"
+    meds_detail_list = []
+    for m in meds:
+        name = m.get("drug_name", "")
+        dosage = m.get("dosage", "")
+        freq = m.get("frequency", "")
+        duration = m.get("duration_days", "")
+        notes = m.get("notes") or m.get("purpose") or ""
+        
+        detail = f"{name} {dosage}".strip()
+        if freq:
+            detail += f" (Frequency: {freq})"
+        if duration:
+            detail += f" (Duration: {duration} days)" if str(duration).isdigit() else f" (Duration: {duration})"
+        if notes:
+            detail += f" [Notes/Instructions: {notes}]"
+        meds_detail_list.append(detail)
+
+    meds_str = "\n  - ".join(meds_detail_list) if meds_detail_list else "None"
 
     labs_str = ", ".join(
         f"{l.get('test_name')}: {l.get('value')} ({l.get('flag', '')})"
         for l in labs
     ) if labs else "None"
 
+    clean_visits = [
+        {
+            "date": v.get("date"),
+            "doctor": v.get("doctor"),
+            "hospital": v.get("hospital"),
+            "diagnosis": v.get("diagnosis"),
+            "reason": v.get("reason"),
+            "notes": (v.get("notes") or "")[:800],
+            "original_file_url": v.get("original_file_url")
+        }
+        for v in visits
+    ]
+
     notes_str = ""
     for idx, n in enumerate(vector_notes, 1):
-        notes_str += f"\nNote #{idx} (Date: {n.get('date')}, Doctor: {n.get('doctor_name')}, Hospital: {n.get('hospital')}):\n\"{n.get('note')}\"\n"
+        note_text = (n.get("note") or "")[:300]
+        notes_str += f"\nNote #{idx} (Date: {n.get('date')}, Doctor: {n.get('doctor_name')}, Hospital: {n.get('hospital')}):\n\"{note_text}\"\n"
+
+    # Ensure notes_str is kept concise
+    notes_str = notes_str[:1200]
 
     return f"""You are a helpful, accurate personal health AI assistant for {patient_name}.
 
@@ -79,8 +96,8 @@ Answer the patient's question based strictly on their personal medical records p
 - Lab results: {labs_str}
 - Upcoming appointments: {len(appts)} scheduled
 
---- FULL VISIT RECORDS (with doctor, hospital, diagnosis, file URLs) ---
-{visits}
+--- FULL VISIT RECORDS ---
+{clean_visits}
 
 --- FULL MEDICATIONS RECORDS ---
 {meds}
@@ -88,7 +105,7 @@ Answer the patient's question based strictly on their personal medical records p
 --- FULL LAB TEST RECORDS ---
 {labs}
 
---- RELEVANT CLINICAL NOTES (Vector Search Matches) ---
+--- RELEVANT CLINICAL NOTES ---
 {notes_str if notes_str else "No specific matching clinical notes found."}
 
 --- PATIENT QUESTION ---

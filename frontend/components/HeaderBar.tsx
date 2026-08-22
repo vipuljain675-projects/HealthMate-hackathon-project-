@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   Clock,
   FileText,
-  X
+  X,
+  UserX
 } from 'lucide-react';
 
 export default function HeaderBar() {
@@ -23,9 +24,9 @@ export default function HeaderBar() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const [user, setUser] = useState({
-    name: 'Rajesh Kumar',
-    email: 'rajesh.kumar@example.com',
-    age: '56 Yrs',
+    name: 'Vipul Jain',
+    email: 'vipul234@gmail.com',
+    age: '28 Yrs',
     gender: 'Male',
     patient_id: 'PID-456789'
   });
@@ -89,10 +90,23 @@ export default function HeaderBar() {
     return nameStr.slice(0, 2).toUpperCase();
   };
 
+  // Temporary Exit: leaves account active, retains remembered_email so Email is pre-filled on Login screen
   const handleLogout = () => {
     setIsProfileOpen(false);
     try {
       localStorage.removeItem('user_session');
+    } catch (e) {
+      console.error(e);
+    }
+    router.push('/');
+  };
+
+  // Complete Exit: purges active session AND remembered_email so login fields start blank
+  const handleSignOut = () => {
+    setIsProfileOpen(false);
+    try {
+      localStorage.removeItem('user_session');
+      localStorage.removeItem('remembered_email');
       sessionStorage.clear();
     } catch (e) {
       console.error(e);
@@ -236,14 +250,28 @@ export default function HeaderBar() {
                 </Link>
               </div>
 
-              {/* Logout Button */}
-              <div className="border-t border-gray-800/80 pt-2">
+              {/* Logout & Sign Out Action Buttons */}
+              <div className="border-t border-gray-800/80 pt-2.5 space-y-1.5">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-red-950/30 border border-red-500/30 text-red-300 hover:bg-red-900/40 hover:border-red-500/50 transition-all text-xs font-bold shadow-md group"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gray-900/90 border border-gray-800 hover:border-teal-500/40 text-gray-300 hover:text-white transition-all text-xs font-semibold group"
                 >
-                  <LogOut className="w-4 h-4 text-red-400 group-hover:-translate-x-0.5 transition-transform" />
-                  <span>Sign Out / Logout</span>
+                  <span className="flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5 text-teal-400 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>Logout</span>
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">Pre-fill Email</span>
+                </button>
+
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-red-950/20 border border-red-500/20 hover:bg-red-950/40 hover:border-red-500/40 text-red-300 hover:text-red-200 transition-all text-xs font-semibold group"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserX className="w-3.5 h-3.5 text-red-400 group-hover:scale-110 transition-transform" />
+                    <span>Sign Out</span>
+                  </span>
+                  <span className="text-[10px] text-red-400/70 font-mono">Clear Saved</span>
                 </button>
               </div>
             </div>

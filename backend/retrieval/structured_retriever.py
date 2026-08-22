@@ -55,7 +55,9 @@ def retrieve_structured_patient_facts(
                     "id": str(m.id),
                     "drug_name": m.drug_name,
                     "dosage": m.dosage,
-                    "frequency": m.frequency
+                    "frequency": m.frequency,
+                    "duration_days": m.duration_days,
+                    "notes": m.notes
                 }
                 for m in medications if m.visit_id == v.id
             ]
@@ -70,6 +72,8 @@ def retrieve_structured_patient_facts(
             "dosage": m.dosage,
             "frequency": m.frequency,
             "purpose": m.purpose,
+            "duration_days": m.duration_days,
+            "notes": m.notes,
             "status": m.status,
             "started_on": str(m.started_on) if m.started_on else None
         }

@@ -123,7 +123,7 @@ def answer_patient_question(
                     "role": "system",
                     "content": "You are a concise medical AI assistant. Output ONLY your direct answer to the patient. No internal reasoning."
                 },
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt[:3000]}
             ],
             temperature=0.1,
             max_tokens=700
