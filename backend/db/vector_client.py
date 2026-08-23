@@ -4,11 +4,16 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 
-CHROMA_DATA_DIR = os.getenv("CHROMA_DATA_DIR", "./data/chroma_db")
+is_vercel = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+CHROMA_DATA_DIR = os.getenv("CHROMA_DATA_DIR", "/tmp/chroma_db" if is_vercel else "./data/chroma_db")
 
-os.makedirs(CHROMA_DATA_DIR, exist_ok=True)
+try:
+    os.makedirs(CHROMA_DATA_DIR, exist_ok=True)
+    chroma_client = chromadb.PersistentClient(path=CHROMA_DATA_DIR)
+except Exception as e:
+    print(f"[VectorDB] Fallback to in-memory ChromaDB due to disk error: {e}")
+    chroma_client = chromadb.EphemeralClient()
 
-chroma_client = chromadb.PersistentClient(path=CHROMA_DATA_DIR)
 collection = chroma_client.get_or_create_collection(
     name="clinical_visit_notes",
     metadata={"hnsw:space": "cosine"}

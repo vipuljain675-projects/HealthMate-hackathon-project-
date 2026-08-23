@@ -51,9 +51,13 @@ app.add_middleware(
 )
 
 # Mount local scans directory if created
-scans_dir = "./data/scans"
-os.makedirs(scans_dir, exist_ok=True)
-app.mount("/scans", StaticFiles(directory=scans_dir), name="scans")
+is_vercel = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+scans_dir = "/tmp/data/scans" if is_vercel else "./data/scans"
+try:
+    os.makedirs(scans_dir, exist_ok=True)
+    app.mount("/scans", StaticFiles(directory=scans_dir), name="scans")
+except Exception as e:
+    print(f"[Main] Static scans directory skip: {e}")
 
 # Include API Router
 app.include_router(api_router)
