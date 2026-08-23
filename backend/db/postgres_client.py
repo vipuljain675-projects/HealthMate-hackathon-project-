@@ -10,15 +10,23 @@ from db.models import Base, Patient, Visit, Medication, Lab, Reminder, Appointme
 
 load_dotenv()
 
-DEFAULT_SUPABASE_DB = "postgresql://postgres:blPkjDpNbSWh4Qt1@db.kywqmkjnavtbpkiarwxt.supabase.co:5432/postgres"
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB
+DEFAULT_SUPABASE_DB = "postgresql://postgres:blPkjDpNbSWh4Qt1@db.kywqmkjnavtbpkiarwxt.supabase.co:5432/postgres?sslmode=require"
+raw_db_url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB
 
-engine: Engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
-)
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+
+# Primary engine with psycopg2 / pg8000
+try:
+    if "pg8000" not in raw_db_url and os.getenv("RENDER"):
+        pg8000_url = raw_db_url.replace("postgresql://", "postgresql+pg8000://")
+        engine: Engine = create_engine(pg8000_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+    else:
+        engine: Engine = create_engine(raw_db_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+except Exception as err:
+    print(f"[PostgreSQL] Primary engine init notice: {err}, falling back to pg8000 driver...")
+    pg8000_url = raw_db_url.replace("postgresql://", "postgresql+pg8000://")
+    engine: Engine = create_engine(pg8000_url, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
