@@ -10,7 +10,7 @@ load_dotenv()
 security = HTTPBearer(auto_error=False)
 
 MOCK_AUTH = os.getenv("MOCK_AUTH", "true").lower() in ("true", "1", "yes")
-DEFAULT_MOCK_USER_ID = os.getenv("DEFAULT_MOCK_USER_ID", "demo-patient-auth-id-123")
+DEFAULT_MOCK_USER_ID = os.getenv("DEFAULT_MOCK_USER_ID", "mock_user_vipuljain675_gmail_com")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 

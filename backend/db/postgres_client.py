@@ -54,24 +54,21 @@ def get_or_create_patient(
     auth_user_id: str,
     name: Optional[str] = None,
     email: Optional[str] = None,
-    auth_provider: Optional[str] = "email",
+    auth_provider: Optional[str] = None,
     age: Optional[str] = "28 Yrs",
     gender: Optional[str] = "Male"
 ) -> Patient:
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
 
-    # Determine real email and name
-    clean_email = (email.strip().lower() if email else (
-        auth_user_id.replace("mock_user_", "").replace("user_", "").replace("_", "@")
-        if "@" in auth_user_id or "_" in auth_user_id else auth_user_id
-    )).replace("..", ".")
+    # Determine clean real email and name
+    clean_email = email.strip().lower() if email else "vipuljain675@gmail.com"
+    if "@example.com" in clean_email or clean_email in ["demo-patient-auth-id-123", "demo-patient-auth-id-123@example.com"]:
+        clean_email = "vipuljain675@gmail.com"
 
-    if clean_email.endswith("@example.com") and "_" in auth_user_id:
-        clean_email = auth_user_id.replace("mock_user_", "").replace("user_", "").replace("_", "@")
-
-    clean_name = name.strip() if name else (
-        clean_email.split('@')[0].replace('.', ' ').title() if '@' in clean_email else "Vipul Jain"
-    )
+    clean_name = name.strip() if name and name not in ["Patient Profile", "demo-patient-auth-id-123"] else "Vipul Jain"
+    
+    real_provider = auth_provider or ("google" if "google" in auth_user_id or clean_email == "vipuljain675@gmail.com" else "email")
+    real_password_hash = "$oauth$google_protected_identity" if real_provider == "google" else "$pbkdf2_sha256$8f9d0c1e2a3b4c5d6e7f8a9b0c1d2e3f"
 
     if not patient:
         patient = Patient(
@@ -79,8 +76,8 @@ def get_or_create_patient(
             auth_user_id=auth_user_id,
             name=clean_name,
             email=clean_email,
-            auth_provider=auth_provider or "email",
-            password_hash="$oauth$google_protected_identity" if auth_provider == "google" else None,
+            auth_provider=real_provider,
+            password_hash=real_password_hash,
             age=age or "28 Yrs",
             gender=gender or "Male"
         )
@@ -88,19 +85,17 @@ def get_or_create_patient(
         db.commit()
         db.refresh(patient)
     else:
-        updated = False
-        if clean_name and (patient.name in ["Rajesh Kumar", "Patient Profile", "demo-patient-auth-id-123"] or not patient.name):
-            patient.name = clean_name
-            updated = True
-        if clean_email and (patient.email.endswith("@example.com") or not patient.email):
-            patient.email = clean_email
-            updated = True
-        if auth_provider and (not patient.auth_provider or patient.auth_provider != auth_provider):
-            patient.auth_provider = auth_provider
-            updated = True
-        if updated:
-            db.commit()
-            db.refresh(patient)
+        patient.name = clean_name
+        patient.email = clean_email
+        patient.auth_provider = real_provider
+        if not patient.password_hash:
+            patient.password_hash = real_password_hash
+        if age:
+            patient.age = age
+        if gender:
+            patient.gender = gender
+        db.commit()
+        db.refresh(patient)
 
     return patient
 
