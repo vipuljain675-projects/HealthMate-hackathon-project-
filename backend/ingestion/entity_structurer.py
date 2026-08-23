@@ -149,7 +149,7 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
             "}"
         )
 
-        models_to_try = [GROQ_MODEL, "groq/compound-mini", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+        models_to_try = ["groq/compound-mini", "openai/gpt-oss-120b", GROQ_MODEL, "openai/gpt-oss-20b"]
         last_error = None
 
         for mod in models_to_try:
@@ -158,7 +158,7 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
                     "model": mod,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:4500]}"}
+                        {"role": "user", "content": f"Extract structured data from this raw clinical text:\n\n{raw_text[:3000]}"}
                     ],
                     "temperature": 0.1
                 }
@@ -177,6 +177,8 @@ def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
                 if not visit_data.get("date"):
                     visit_data["date"] = date.today().isoformat()
                 parsed_dict["visit"] = visit_data
+
+                print(f"[EntityStructurer] Successfully extracted JSON entities using model: '{mod}'")
 
                 # Build a rich free_text_notes if the LLM didn't produce one
                 llm_notes = parsed_dict.get("free_text_notes") or ""

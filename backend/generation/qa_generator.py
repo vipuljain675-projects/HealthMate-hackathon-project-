@@ -102,7 +102,7 @@ def answer_patient_question(
 
         prompt_to_send = prompt[:6000]
 
-        models_to_try = ["openai/gpt-oss-120b", "groq/compound", "groq/compound-mini"]
+        models_to_try = ["groq/compound", "openai/gpt-oss-120b", "groq/compound-mini"]
         last_error = None
 
         for mod in models_to_try:
