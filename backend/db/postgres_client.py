@@ -10,7 +10,8 @@ from db.models import Base, Patient, Visit, Medication, Lab, Reminder, Appointme
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DEFAULT_SUPABASE_DB = "postgresql://postgres:blPkjDpNbSWh4Qt1@db.kywqmkjnavtbpkiarwxt.supabase.co:5432/postgres"
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB
 
 engine: Engine = create_engine(
     DATABASE_URL,
