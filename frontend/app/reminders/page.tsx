@@ -6,6 +6,8 @@ import ReminderToastContainer from '@/components/ReminderToastContainer';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Bell, Plus, BellRing, CheckCircle2, XCircle, Loader2, Send, AlertTriangle } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export default function RemindersPage() {
   const fetchReminders = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/reminders', {
+      const res = await fetch(`${BACKEND_URL}/api/reminders`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       if (!res.ok) throw new Error('Failed to load reminders');
@@ -45,7 +47,7 @@ export default function RemindersPage() {
     if (!medicineName) return;
     setIsAdding(true);
     try {
-      await fetch('http://localhost:8000/api/reminders', {
+      await fetch(`${BACKEND_URL}/api/reminders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
         body: JSON.stringify({ medicine_name: medicineName, dosage, time_of_day: timeOfDay, frequency })

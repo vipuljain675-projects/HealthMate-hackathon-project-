@@ -14,13 +14,15 @@ import {
   PlusCircle
 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [timelineCount, setTimelineCount] = useState<string>('1');
 
   useEffect(() => {
     // Fetch real timeline records count dynamically
-    fetch('http://localhost:8000/api/timeline', {
+    fetch(`${BACKEND_URL}/api/timeline`, {
       headers: { 'Authorization': 'Bearer mock_token_dev' }
     })
       .then(res => res.json())

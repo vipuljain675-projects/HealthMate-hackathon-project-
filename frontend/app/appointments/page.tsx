@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import AppointmentCard from '@/components/AppointmentCard';
 import { Calendar, Plus } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ export default function AppointmentsPage() {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/appointments', {
+      const res = await fetch(`${BACKEND_URL}/api/appointments`, {
         headers: { 'Authorization': 'Bearer mock_token_dev' }
       });
       if (!res.ok) throw new Error('Failed to load appointments');
@@ -38,7 +40,7 @@ export default function AppointmentsPage() {
 
     setIsAdding(true);
     try {
-      const res = await fetch('http://localhost:8000/api/appointments', {
+      const res = await fetch(`${BACKEND_URL}/api/appointments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

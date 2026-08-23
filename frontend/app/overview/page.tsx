@@ -23,6 +23,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 function cleanAIResponse(text: string): string {
   if (!text) return '';
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
@@ -57,7 +59,7 @@ export default function OverviewDashboardPage() {
         }
       } catch (e) {}
 
-      const res = await fetch('http://localhost:8000/api/timeline', {
+      const res = await fetch(`${BACKEND_URL}/api/timeline`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to load health timeline');

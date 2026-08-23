@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Loader2, ShieldCheck } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function AuthCallbackPage() {
   const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export default function AuthCallbackPage() {
 
         // Get or create patient profile in PostgreSQL cleanly without 400 errors
         try {
-          await fetch('http://localhost:8000/api/me', {
+          await fetch(`${BACKEND_URL}/api/me`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

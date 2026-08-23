@@ -14,6 +14,8 @@ import {
   TestTube 
 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function ClinicalEntryForm() {
   const [activeTab, setActiveTab] = useState<'ocr' | 'manual'>('ocr');
   
@@ -66,7 +68,7 @@ export default function ClinicalEntryForm() {
     formData.append('file', file);
 
     try {
-      const res = await fetch('http://localhost:8000/api/entry/ocr', {
+      const res = await fetch(`${BACKEND_URL}/api/entry/ocr`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`
@@ -105,7 +107,7 @@ export default function ClinicalEntryForm() {
     };
 
     try {
-      const res = await fetch('http://localhost:8000/api/entry/manual', {
+      const res = await fetch(`${BACKEND_URL}/api/entry/manual`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

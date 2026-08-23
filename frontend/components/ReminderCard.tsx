@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Bell, Clock, Check, Pencil, Trash2, Save, X, FileText } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 interface ReminderCardProps {
   id: string;
   medicine_name: string;
@@ -41,7 +43,7 @@ export default function ReminderCard({
     const nextActive = !active;
     setActive(nextActive);
     try {
-      await fetch(`http://localhost:8000/api/reminders/${id}`, {
+      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_token_dev' },
         body: JSON.stringify({ active: nextActive })
@@ -54,7 +56,7 @@ export default function ReminderCard({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`http://localhost:8000/api/reminders/${id}`, {
+      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_token_dev' },
         body: JSON.stringify({
@@ -77,7 +79,7 @@ export default function ReminderCard({
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await fetch(`http://localhost:8000/api/reminders/${id}`, {
+      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': 'Bearer mock_token_dev' }
       });

@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import MedicationCard from '@/components/MedicationCard';
 import { Pill, Filter, PlusCircle, X, Loader2, CheckCircle2 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function MedicationsPage() {
   const [meds, setMeds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +29,8 @@ export default function MedicationsPage() {
     setLoading(true);
     try {
       const url = filterStatus === 'all'
-        ? 'http://localhost:8000/api/medications'
-        : `http://localhost:8000/api/medications?status=${filterStatus}`;
+        ? `${BACKEND_URL}/api/medications`
+        : `${BACKEND_URL}/api/medications?status=${filterStatus}`;
       let token = 'mock_token_dev';
       try {
         const raw = localStorage.getItem('user_session');
@@ -75,7 +77,7 @@ export default function MedicationsPage() {
         }
       } catch (e) {}
 
-      const res = await fetch('http://localhost:8000/api/medications', {
+      const res = await fetch(`${BACKEND_URL}/api/medications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

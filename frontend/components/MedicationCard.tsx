@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Pill, Clock, CheckCircle2, AlertCircle, Pencil, Trash2, Save, X, Calendar, FileText } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 interface MedicationCardProps {
   id: string;
   drug_name: string;
@@ -38,7 +40,7 @@ export default function MedicationCard({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`http://localhost:8000/api/medications/${id}`, {
+      await fetch(`${BACKEND_URL}/api/medications/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_token_dev' },
         body: JSON.stringify({
@@ -55,7 +57,7 @@ export default function MedicationCard({
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await fetch(`http://localhost:8000/api/medications/${id}`, {
+      await fetch(`${BACKEND_URL}/api/medications/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': 'Bearer mock_token_dev' }
       });

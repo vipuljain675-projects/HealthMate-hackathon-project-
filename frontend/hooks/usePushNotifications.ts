@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const BACKEND_URL = 'http://localhost:8000';
+import { BACKEND_URL } from '@/lib/config';
 const AUTH_HEADER = { 'Authorization': 'Bearer mock_token_dev' };
 const POLL_INTERVAL_MS = 30 * 1000;
 

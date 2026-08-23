@@ -14,6 +14,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
@@ -142,7 +144,7 @@ export default function AskPage() {
         }
       } catch (e) {}
 
-      const res = await fetch('http://localhost:8000/api/ask', {
+      const res = await fetch(`${BACKEND_URL}/api/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

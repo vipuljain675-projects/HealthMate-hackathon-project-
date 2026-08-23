@@ -19,6 +19,8 @@ import {
   Check
 } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 export default function AuthPage() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
@@ -98,7 +100,7 @@ export default function AuthPage() {
     try {
       if (authMode === 'signin') {
         // REAL LOGIN VALIDATION against PostgreSQL DB
-        const res = await fetch('http://localhost:8000/api/auth/login', {
+        const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: patientEmail, password })
@@ -131,7 +133,7 @@ export default function AuthPage() {
 
       } else {
         // REAL SIGN UP VALIDATION against PostgreSQL DB
-        const res = await fetch('http://localhost:8000/api/auth/signup', {
+        const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
