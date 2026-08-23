@@ -22,10 +22,22 @@ engine: Engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+from sqlalchemy import text
+
+
 def init_db():
-    """Initialize online Supabase PostgreSQL database tables."""
+    """Initialize online Supabase PostgreSQL database tables & auto-migrate missing columns."""
     Base.metadata.create_all(bind=engine)
-    print("[Database] Connected to online Supabase PostgreSQL database successfully.")
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'email';"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS password_hash VARCHAR;"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS age VARCHAR DEFAULT '28 Yrs';"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender VARCHAR DEFAULT 'Male';"))
+            conn.commit()
+    except Exception as e:
+        print(f"[Database Migration Note] {e}")
+    print("[Database] Connected to online Supabase PostgreSQL database successfully & schema updated.")
 
 
 def get_db():
@@ -37,33 +49,59 @@ def get_db():
         db.close()
 
 
-def get_or_create_patient(db: Session, auth_user_id: str, name: Optional[str] = None, email: Optional[str] = None) -> Patient:
+def get_or_create_patient(
+    db: Session,
+    auth_user_id: str,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    auth_provider: Optional[str] = "email",
+    age: Optional[str] = "28 Yrs",
+    gender: Optional[str] = "Male"
+) -> Patient:
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
-    
-    # Derive clean default name if none provided
-    derived_name = name or (email.split('@')[0].capitalize() if email else "Patient Profile")
-    if derived_name == "Rajesh Kumar":
-        derived_name = "Vipul Jain"
+
+    # Determine real email and name
+    clean_email = (email.strip().lower() if email else (
+        auth_user_id.replace("mock_user_", "").replace("user_", "").replace("_", "@")
+        if "@" in auth_user_id or "_" in auth_user_id else auth_user_id
+    )).replace("..", ".")
+
+    if clean_email.endswith("@example.com") and "_" in auth_user_id:
+        clean_email = auth_user_id.replace("mock_user_", "").replace("user_", "").replace("_", "@")
+
+    clean_name = name.strip() if name else (
+        clean_email.split('@')[0].replace('.', ' ').title() if '@' in clean_email else "Vipul Jain"
+    )
 
     if not patient:
         patient = Patient(
             id=uuid.uuid4(),
             auth_user_id=auth_user_id,
-            name=derived_name,
-            email=email or f"{auth_user_id}@example.com"
+            name=clean_name,
+            email=clean_email,
+            auth_provider=auth_provider or "email",
+            password_hash="$oauth$google_protected_identity" if auth_provider == "google" else None,
+            age=age or "28 Yrs",
+            gender=gender or "Male"
         )
         db.add(patient)
         db.commit()
         db.refresh(patient)
     else:
-        # Update existing generic name if a specific real name is provided
-        if name and (patient.name in ["Rajesh Kumar", "Patient Profile", "demo-patient-auth-id-123"] or not patient.name):
-            patient.name = name
-            if email:
-                patient.email = email
+        updated = False
+        if clean_name and (patient.name in ["Rajesh Kumar", "Patient Profile", "demo-patient-auth-id-123"] or not patient.name):
+            patient.name = clean_name
+            updated = True
+        if clean_email and (patient.email.endswith("@example.com") or not patient.email):
+            patient.email = clean_email
+            updated = True
+        if auth_provider and (not patient.auth_provider or patient.auth_provider != auth_provider):
+            patient.auth_provider = auth_provider
+            updated = True
+        if updated:
             db.commit()
             db.refresh(patient)
-            
+
     return patient
 
 

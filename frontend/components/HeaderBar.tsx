@@ -13,7 +13,10 @@ import {
   Clock,
   FileText,
   X,
-  UserX
+  UserX,
+  Edit3,
+  User,
+  Save
 } from 'lucide-react';
 
 export default function HeaderBar() {
@@ -22,6 +25,7 @@ export default function HeaderBar() {
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   const [user, setUser] = useState({
     name: 'Vipul Jain',
@@ -30,6 +34,10 @@ export default function HeaderBar() {
     gender: 'Male',
     patient_id: 'PID-456789'
   });
+
+  const [editName, setEditName] = useState('');
+  const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('Male');
   
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -42,6 +50,9 @@ export default function HeaderBar() {
         const parsed = JSON.parse(raw);
         if (parsed.name) {
           setUser(parsed);
+          setEditName(parsed.name || '');
+          setEditAge(parsed.age || '28 Yrs');
+          setEditGender(parsed.gender || 'Male');
         }
       }
     } catch (e) {
@@ -82,12 +93,30 @@ export default function HeaderBar() {
   };
 
   const getInitials = (nameStr: string) => {
-    if (!nameStr) return 'RK';
+    if (!nameStr) return 'VJ';
     const parts = nameStr.trim().split(' ');
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     }
     return nameStr.slice(0, 2).toUpperCase();
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = {
+      ...user,
+      name: editName.trim() || user.name,
+      age: editAge.trim() || user.age,
+      gender: editGender
+    };
+    setUser(updated);
+    try {
+      localStorage.setItem('user_session', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+    setIsEditProfileOpen(false);
+    window.location.reload();
   };
 
   // Temporary Exit: leaves account active, retains remembered_email so Email is pre-filled on Login screen
@@ -101,17 +130,17 @@ export default function HeaderBar() {
     router.push('/');
   };
 
-  // Complete Exit: purges active session AND remembered_email so login fields start blank
+  // Complete Exit: purges active session AND remembered_email so login fields start completely blank
   const handleSignOut = () => {
     setIsProfileOpen(false);
     try {
       localStorage.removeItem('user_session');
       localStorage.removeItem('remembered_email');
-      sessionStorage.clear();
+      sessionStorage.setItem('just_signed_out', 'true');
     } catch (e) {
       console.error(e);
     }
-    router.push('/');
+    window.location.href = '/?action=signout';
   };
 
   return (
@@ -204,7 +233,20 @@ export default function HeaderBar() {
                   {getInitials(user.name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-bold text-white truncate">{user.name}</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-white truncate">{user.name}</h4>
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        setIsEditProfileOpen(true);
+                      }}
+                      className="text-teal-400 hover:text-teal-300 p-1 rounded-md bg-teal-500/10 border border-teal-500/20 text-[10px] font-bold flex items-center gap-1"
+                      title="Edit Age & Gender"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      <span>Edit</span>
+                    </button>
+                  </div>
                   <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
                   
                   <div className="flex items-center gap-1.5 mt-1.5">
@@ -212,7 +254,7 @@ export default function HeaderBar() {
                       {user.patient_id || 'PID-456789'}
                     </span>
                     <span className="text-[10px] text-gray-400">
-                      {user.age || '35 Yrs'} / {user.gender || 'Male'}
+                      {user.age || '28 Yrs'} / {user.gender || 'Male'}
                     </span>
                   </div>
                 </div>
@@ -279,6 +321,78 @@ export default function HeaderBar() {
         </div>
 
       </div>
+
+      {/* Edit Profile Modal */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-gray-950 border border-gray-800 rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center space-x-2 text-white font-bold text-sm">
+                <User className="w-4 h-4 text-teal-400" />
+                <span>Edit Patient Profile</span>
+              </div>
+              <button onClick={() => setIsEditProfileOpen(false)} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div>
+                <label className="text-gray-400 font-semibold uppercase tracking-wider block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 font-semibold uppercase tracking-wider block mb-1">Age</label>
+                  <input
+                    type="text"
+                    value={editAge}
+                    onChange={(e) => setEditAge(e.target.value)}
+                    placeholder="e.g. 28 Yrs"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 font-semibold uppercase tracking-wider block mb-1">Gender</label>
+                  <select
+                    value={editGender}
+                    onChange={(e) => setEditGender(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-gray-900 text-gray-300 font-semibold hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl gradient-btn text-white font-bold flex items-center space-x-1.5 shadow-lg shadow-teal-500/20"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

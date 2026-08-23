@@ -14,6 +14,10 @@ class Patient(Base):
     auth_user_id = Column(String, unique=True, nullable=False, index=True)  # links to Supabase auth.users
     name = Column(String, nullable=False)
     email = Column(String, unique=True)
+    auth_provider = Column(String, default="email")      # "google", "email"
+    password_hash = Column(String, nullable=True)        # secure hashed password
+    age = Column(String, default="28 Yrs")
+    gender = Column(String, default="Male")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

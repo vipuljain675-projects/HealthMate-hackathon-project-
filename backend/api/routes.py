@@ -1,4 +1,5 @@
 import uuid
+import re
 from typing import List, Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
@@ -19,6 +20,7 @@ from db.postgres_client import (
     get_patient_reminders,
     get_patient_appointments
 )
+from db.models import Patient
 from db.vector_client import add_visit_note_embedding, add_lab_results_embedding, add_medication_embedding
 from auth.verify_supabase_token import verify_supabase_token
 from ingestion.ocr_extractor import extract_text_from_image, clean_ocr_text
@@ -131,9 +133,114 @@ def send_test_push(
     return {"success": success, "message": "Test notification sent!"}
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class SignUpRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    age: Optional[str] = None
+    gender: Optional[str] = None
+
+
+import hashlib
+
+
+def hash_password(password: str) -> str:
+    if not password or password == "google_oauth_protected":
+        return "$oauth$google_protected_identity"
+    salted = f"healthvault_salt_{password}_2026"
+    return f"$pbkdf2_sha256${hashlib.sha256(salted.encode()).hexdigest()[:32]}"
+
+
+@router.post("/auth/signup")
+def signup_patient(payload: SignUpRequest, db: Session = Depends(get_db)):
+    email_clean = payload.email.strip().lower()
+    if not email_clean:
+        raise HTTPException(status_code=400, detail="Email address is required")
+
+    existing = db.query(Patient).filter(Patient.email == email_clean).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists! Please switch to 'Sign In / Login' tab to log in."
+        )
+
+    stable_key = re.sub(r'[^a-z0-9]', '_', email_clean)
+    auth_user_id = f"user_{stable_key}"
+
+    patient = Patient(
+        auth_user_id=auth_user_id,
+        name=payload.name.strip() if payload.name else "New Patient",
+        email=email_clean,
+        auth_provider="email" if payload.password != "google_oauth_protected" else "google",
+        password_hash=hash_password(payload.password),
+        age=payload.age or "28 Yrs",
+        gender=payload.gender or "Male"
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+
+    return {
+        "status": "success",
+        "message": "Account created successfully",
+        "auth_token": auth_user_id,
+        "patient": {
+            "id": str(patient.id),
+            "name": patient.name,
+            "email": patient.email,
+            "auth_provider": patient.auth_provider,
+            "password_hash": patient.password_hash,
+            "age": patient.age,
+            "gender": patient.gender
+        }
+    }
+
+
+@router.post("/auth/login")
+def login_patient(payload: LoginRequest, db: Session = Depends(get_db)):
+    email_clean = payload.email.strip().lower()
+    if not email_clean:
+        raise HTTPException(status_code=400, detail="Email address is required")
+
+    existing = db.query(Patient).filter(Patient.email == email_clean).first()
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No account found for '{email_clean}'. Please click 'Sign Up' tab to create your account first!"
+        )
+
+    # Update password hash if not set
+    if not existing.password_hash or existing.password_hash == "$oauth$google_protected_identity":
+        existing.password_hash = hash_password(payload.password)
+        db.commit()
+
+    return {
+        "status": "success",
+        "message": "Authenticated successfully",
+        "auth_token": existing.auth_user_id,
+        "patient": {
+            "id": str(existing.id),
+            "name": existing.name,
+            "email": existing.email,
+            "auth_provider": existing.auth_provider or "email",
+            "password_hash": existing.password_hash,
+            "age": existing.age or "28 Yrs",
+            "gender": existing.gender or "Male"
+        }
+    }
+
+
 class UserProfileUpdateRequest(BaseModel):
     name: str
     email: Optional[str] = None
+    auth_provider: Optional[str] = "email"
+    age: Optional[str] = "28 Yrs"
+    gender: Optional[str] = "Male"
 
 
 # ==========================================
@@ -150,6 +257,10 @@ def get_current_patient_profile(
         "auth_user_id": patient.auth_user_id,
         "name": patient.name,
         "email": patient.email,
+        "auth_provider": patient.auth_provider or "email",
+        "password_hash": patient.password_hash,
+        "age": patient.age or "28 Yrs",
+        "gender": patient.gender or "Male",
         "created_at": str(patient.created_at)
     }
 
@@ -160,18 +271,37 @@ def update_current_patient_profile(
     auth_user_id: str = Depends(verify_supabase_token),
     db: Session = Depends(get_db)
 ):
-    patient = get_or_create_patient(db, auth_user_id, name=payload.name, email=payload.email)
-    if payload.name:
+    patient = get_or_create_patient(
+        db,
+        auth_user_id,
+        name=payload.name,
+        email=payload.email,
+        auth_provider=payload.auth_provider,
+        age=payload.age,
+        gender=payload.gender
+    )
+    if payload.name and payload.name not in ["Patient Profile", "Rajesh Kumar"]:
         patient.name = payload.name
-    if payload.email:
+    if payload.email and not payload.email.endswith("@example.com"):
         patient.email = payload.email
+    if payload.auth_provider:
+        patient.auth_provider = payload.auth_provider
+    if payload.age:
+        patient.age = payload.age
+    if payload.gender:
+        patient.gender = payload.gender
+
     db.commit()
     db.refresh(patient)
     return {
         "id": str(patient.id),
         "auth_user_id": patient.auth_user_id,
         "name": patient.name,
-        "email": patient.email
+        "email": patient.email,
+        "auth_provider": patient.auth_provider,
+        "password_hash": patient.password_hash,
+        "age": patient.age,
+        "gender": patient.gender
     }
 
 

@@ -46,8 +46,13 @@ htmlcov/
 # ──────────────────────────────────────────
 # ChromaDB local vector store (patient embeddings — private data)
 backend/data/chroma_db/
+backend/chroma_store/
+chroma_store/
 data/chroma_db/
 chroma_db/
+
+# Local scans folder
+backend/data/scans/
 
 # Local SQLite DB (if generated during dev)
 *.db
