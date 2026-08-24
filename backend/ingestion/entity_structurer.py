@@ -62,21 +62,37 @@ class StructuredClinicalExtraction(BaseModel):
     free_text_notes: Optional[str] = Field(default="")
 
 
-def parse_raw_text_to_entities(raw_text: str) -> StructuredClinicalExtraction:
-    """
-    Transforms raw medical text (from OCR or manual input) into structured clinical JSON.
-    Handles prescriptions, lab reports, and discharge summaries.
-    """
-    if not GROQ_API_KEY:
+def _build_mock_extraction(raw_text: str) -> StructuredClinicalExtraction:
+    today_str = date.today().isoformat()
+    return StructuredClinicalExtraction(
+        visit=ExtractedVisit(
+            date=today_str,
+            hospital="City Care Clinic",
+            doctor_name="Dr. Anjali Sharma",
+            reason="Hypertension checkup",
+            diagnosis="Essential Hypertension",
+            notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
+        ),
+        medications=[
+            ExtractedMedication(drug_name="Amlodipine", dosage="5mg", frequency="once daily", purpose="BP control", duration_days="30 days"),
+            ExtractedMedication(drug_name="Metformin", dosage="500mg", frequency="twice daily", purpose="Diabetes control", duration_days="30 days")
+        ],
+        labs=[
+            ExtractedLab(test_name="HbA1c", value="6.2%", flag="normal"),
+            ExtractedLab(test_name="Creatinine", value="0.9 mg/dL", flag="normal")
+        ],
+        free_text_notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
+    )
+
+
+def get_groq_api_key() -> str:
+    return (os.getenv("GROQ_API_KEY") or "").strip()
+
+
+def structure_clinical_text(raw_text: str) -> StructuredClinicalExtraction:
+    api_key = get_groq_api_key()
+    if not api_key:
         print("[EntityStructurer] GROQ_API_KEY not set. Using rule-based/mock parsing.")
-        today_str = date.today().isoformat()
-        return StructuredClinicalExtraction(
-            visit=ExtractedVisit(
-                date=today_str,
-                hospital="City Care Clinic",
-                doctor_name="Dr. Anjali Sharma",
-                reason="Hypertension checkup",
-                diagnosis="Essential Hypertension",
                 notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
             ),
             medications=[

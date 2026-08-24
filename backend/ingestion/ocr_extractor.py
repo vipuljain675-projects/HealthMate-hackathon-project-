@@ -42,19 +42,19 @@ def extract_text_local(image_bytes: bytes, mime_type: str = "image/jpeg") -> str
         return ""
 
 
+def get_groq_api_key() -> str:
+    return (os.getenv("GROQ_API_KEY") or "").strip()
+
 def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
-    """
-    Performs OCR extraction on an image document scan.
-    Tries multiple Groq Vision models with retry/backoff, falls back to pytesseract.
-    Always returns the best available text — never a useless placeholder.
-    """
-    if not GROQ_API_KEY:
+    api_key = get_groq_api_key()
+    if not api_key:
         print("[OCR] GROQ_API_KEY not set. Using local pytesseract OCR.")
         return extract_text_local(image_bytes, mime_type)
 
     try:
         from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=api_key)
+
 
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         image_url = f"data:{mime_type};base64,{base64_image}"

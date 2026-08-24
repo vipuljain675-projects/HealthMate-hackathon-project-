@@ -11,11 +11,12 @@ from augmentation.prompt_builder import build_qa_prompt, format_doctor_name
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
+def get_groq_api_key() -> str:
+    return (os.getenv("GROQ_API_KEY") or "").strip()
 
 
 def clean_llm_response(text: str) -> str:
+
     """Strips internal reasoning / thinking process from LLM output."""
     if not text:
         return ""
@@ -67,7 +68,8 @@ def answer_patient_question(
         vector_notes=vector_notes
     )
 
-    if not GROQ_API_KEY:
+    api_key = get_groq_api_key()
+    if not api_key:
         print("[QAGenerator] GROQ_API_KEY not set. Using rule-based fallback answer.")
         answer = _build_fallback_from_records(patient_name, user_question, structured_facts)
         return {
@@ -83,7 +85,8 @@ def answer_patient_question(
 
     try:
         from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=api_key)
+
 
         system_message = (
             f"You are a smart, empathetic AI Personal Health Assistant for {patient_name}.\n\n"

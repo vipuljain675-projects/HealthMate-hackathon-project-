@@ -20,20 +20,25 @@ def clean_llm_response(text: str) -> str:
     return cleaned.strip()
 
 
+def get_groq_api_key() -> str:
+    return (os.getenv("GROQ_API_KEY") or "").strip()
+
+
 def generate_timeline_summary(patient_name: str, structured_facts: Dict[str, Any]) -> str:
-    """Generates an AI-synthesized health timeline overview."""
     visits = structured_facts.get("visits", [])
     meds = structured_facts.get("medications", [])
     labs = structured_facts.get("labs", [])
 
     prompt = build_timeline_prompt(patient_name, structured_facts)
 
-    if not GROQ_API_KEY:
+    api_key = get_groq_api_key()
+    if not api_key:
         return _build_fallback_timeline(patient_name, visits, meds, labs)
 
     try:
         from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=api_key)
+
 
         models_to_try = ["openai/gpt-oss-120b", "groq/compound", "groq/compound-mini"]
         last_error = None
