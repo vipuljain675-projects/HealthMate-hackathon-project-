@@ -150,13 +150,14 @@ def answer_patient_question(
             print(f"[QAGenerator] HTTPX model {mod} error: {ex}. Retrying...")
             continue
 
-    print(f"[QAGenerator] All models failed, last error: {last_error}")
+    print(f"[QAGenerator] All models failed, last error: {type(last_error).__name__}: {last_error}")
     fallback = _build_fallback_from_records(patient_name, user_question, structured_facts)
     return {
         "question": user_question,
         "answer": fallback,
-        "sources": {"error": str(last_error)}
+        "sources": {"error": f"{type(last_error).__name__}: {last_error}"}
     }
+
 
 
 
