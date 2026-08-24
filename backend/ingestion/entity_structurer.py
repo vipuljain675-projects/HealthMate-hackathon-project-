@@ -93,18 +93,8 @@ def structure_clinical_text(raw_text: str) -> StructuredClinicalExtraction:
     api_key = get_groq_api_key()
     if not api_key:
         print("[EntityStructurer] GROQ_API_KEY not set. Using rule-based/mock parsing.")
-                notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
-            ),
-            medications=[
-                ExtractedMedication(drug_name="Amlodipine", dosage="5mg", frequency="once daily", purpose="BP control", duration_days="30 days"),
-                ExtractedMedication(drug_name="Metformin", dosage="500mg", frequency="twice daily", purpose="Diabetes control", duration_days="30 days")
-            ],
-            labs=[
-                ExtractedLab(test_name="HbA1c", value="6.2%", flag="normal"),
-                ExtractedLab(test_name="Creatinine", value="0.9 mg/dL", flag="normal")
-            ],
-            free_text_notes="Patient complains of occasional afternoon headaches. Advised low-sodium diet."
-        )
+        return _build_mock_extraction(raw_text)
+
 
     try:
         from groq import Groq
@@ -258,3 +248,8 @@ def structure_clinical_text(raw_text: str) -> StructuredClinicalExtraction:
             labs=[],
             free_text_notes=raw_text
         )
+
+
+# Alias for backward compatibility with routes.py
+parse_raw_text_to_entities = structure_clinical_text
+
