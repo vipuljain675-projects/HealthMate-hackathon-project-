@@ -10,29 +10,19 @@ from db.models import Base, Patient, Visit, Medication, Lab, Reminder, Appointme
 
 load_dotenv()
 
-DEFAULT_SUPABASE_DB = "postgresql://postgres:blPkjDpNbSWh4Qt1@db.kywqmkjnavtbpkiarwxt.supabase.co:5432/postgres?sslmode=require"
+DEFAULT_SUPABASE_DB = "postgresql://postgres.kywqmkjnavtbpkiarwxt:blPkjDpNbSWh4Qt1@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require"
 raw_db_url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB
 
 if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
 
-# Primary engine with psycopg2 / pg8000
-try:
-    if "pg8000" not in raw_db_url and os.getenv("RENDER"):
-        pg8000_url = raw_db_url.replace("postgresql://", "postgresql+pg8000://")
-        engine: Engine = create_engine(pg8000_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
-    else:
-        engine: Engine = create_engine(raw_db_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
-except Exception as err:
-    print(f"[PostgreSQL] Primary engine init notice: {err}, falling back to pg8000 driver...")
-    pg8000_url = raw_db_url.replace("postgresql://", "postgresql+pg8000://")
-    engine: Engine = create_engine(pg8000_url, pool_pre_ping=True)
+if "sslmode=require" not in raw_db_url and "?" not in raw_db_url:
+    raw_db_url = f"{raw_db_url}?sslmode=require"
 
+engine: Engine = create_engine(raw_db_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
 from sqlalchemy import text
-
 
 def init_db():
     """Initialize online Supabase PostgreSQL database tables & auto-migrate missing columns."""
@@ -78,6 +68,12 @@ def get_or_create_patient(
     
     real_provider = auth_provider or ("google" if "google" in auth_user_id or clean_email == "vipuljain675@gmail.com" else "email")
     real_password_hash = "$oauth$google_protected_identity" if real_provider == "google" else "$pbkdf2_sha256$8f9d0c1e2a3b4c5d6e7f8a9b0c1d2e3f"
+
+    # Secondary lookup by email to avoid UniqueViolation constraint error
+    if not patient:
+        patient = db.query(Patient).filter(Patient.email == clean_email).first()
+        if patient:
+            patient.auth_user_id = auth_user_id
 
     if not patient:
         patient = Patient(

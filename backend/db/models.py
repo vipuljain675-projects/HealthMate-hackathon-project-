@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Date, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, Date, DateTime, Boolean, ForeignKey, Text, Uuid
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
 
@@ -10,7 +9,7 @@ Base = declarative_base()
 class Patient(Base):
     __tablename__ = "patients"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     auth_user_id = Column(String, unique=True, nullable=False, index=True)  # links to Supabase auth.users
     name = Column(String, nullable=False)
     email = Column(String, unique=True)
@@ -31,8 +30,8 @@ class Patient(Base):
 class Visit(Base):
     __tablename__ = "visits"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
     date = Column(Date, nullable=False)
     hospital = Column(String)
     doctor_name = Column(String)
@@ -51,9 +50,9 @@ class Visit(Base):
 class Medication(Base):
     __tablename__ = "medications"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    visit_id = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
     drug_name = Column(String, nullable=False)
     dosage = Column(String)              # "5mg"
     frequency = Column(String)           # "once daily"
@@ -71,9 +70,9 @@ class Medication(Base):
 class Lab(Base):
     __tablename__ = "labs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    visit_id = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
     test_name = Column(String, nullable=False)  # "Creatinine", "HbA1c"
     value = Column(String)               # "1.6 mg/dL"
     flag = Column(String)                # "normal" / "elevated" / "low"
@@ -86,9 +85,9 @@ class Lab(Base):
 class Reminder(Base):
     __tablename__ = "reminders"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    medication_id = Column(UUID(as_uuid=True), ForeignKey("medications.id"), nullable=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    medication_id = Column(Uuid(as_uuid=True), ForeignKey("medications.id"), nullable=True)
     medicine_name = Column(String, nullable=False)
     dosage = Column(String)
     time_of_day = Column(String)         # "08:00"
@@ -103,8 +102,8 @@ class Reminder(Base):
 class Appointment(Base):
     __tablename__ = "appointments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
     doctor_name = Column(String)
     hospital = Column(String)
     appointment_date = Column(Date, nullable=False)
