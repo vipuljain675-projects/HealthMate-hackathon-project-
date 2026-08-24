@@ -11,7 +11,7 @@ from db.models import Base, Patient, Visit, Medication, Lab, Reminder, Appointme
 load_dotenv()
 
 DEFAULT_SUPABASE_DB = "postgresql://postgres.kywqmkjnavtbpkiarwxt:blPkjDpNbSWh4Qt1@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require"
-raw_db_url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB
+raw_db_url = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL") or DEFAULT_SUPABASE_DB).strip()
 
 if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
