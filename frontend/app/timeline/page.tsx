@@ -49,9 +49,13 @@ export default function HealthTimelinePage() {
         }
       } catch (e) {}
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000); // 60s for Render cold start
       const res = await fetch(`${BACKEND_URL}/api/timeline`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (!res.ok) throw new Error('Failed to load health timeline');
       const json = await res.json();
       setData(json);
@@ -132,7 +136,7 @@ export default function HealthTimelinePage() {
           <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0" />
           <div>
             <p className="font-bold">Backend Connection Note</p>
-            <p className="text-xs text-red-400 mt-0.5">{error}. Ensure FastAPI is running on `http://localhost:8000`.</p>
+            <p className="text-xs text-red-400 mt-0.5">{error}. Backend: <code className="text-red-300">{BACKEND_URL}</code></p>
           </div>
         </div>
       )}
