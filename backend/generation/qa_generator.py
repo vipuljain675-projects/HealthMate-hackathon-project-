@@ -83,79 +83,81 @@ def answer_patient_question(
             }
         }
 
-    try:
-        from groq import Groq
-        client = Groq(api_key=api_key)
+    import httpx
+    system_message = (
+        f"You are a smart, empathetic AI Personal Health Assistant for {patient_name}.\n\n"
+        "GUIDELINES FOR YOUR RESPONSE:\n"
+        "1. FOCUS ON THE SPECIFIC QUESTION ASKED: Answer the user's question directly, accurately, and concisely. "
+        "Do NOT dump unrelated sections, full medication lists, or lab tables UNLESS the user explicitly asks for them or if they directly pertain to the question.\n"
+        "2. ACCURATE ATTRIBUTION: When referencing a doctor, hospital, prescription, or lab test, ensure you attribute them to the EXACT visit where they occurred.\n"
+        "3. NATURAL & CONVERSATIONAL: Respond naturally like a knowledgeable clinical AI companion. "
+        "Use clean markdown formatting, bold key terms, and bullet points where helpful.\n"
+        "4. GENERAL HEALTH KNOWLEDGE: If the user asks general medical questions (e.g. 'What is cholesterol?', 'What should I eat?', 'Explain my diagnosis'), "
+        "provide accurate health advice using general clinical knowledge while referencing their personal health data if relevant.\n"
+        "5. NO CONTRADICTIONS: Never contradict yourself in the same response. Do not list information and then state it could not be found.\n"
+        "6. DOCUMENT SCANS: If the user asks for their document or scan image, provide the exact scan URL from the visit record in a clickable link.\n"
+        "7. DISCLAIMER: Always conclude with a brief, gentle 1-line standard medical disclaimer."
+    )
 
+    prompt_to_send = prompt[:6000]
+    models_to_try = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "groq/compound-mini", "qwen/qwen3.6-27b"]
+    last_error = None
 
-        system_message = (
-            f"You are a smart, empathetic AI Personal Health Assistant for {patient_name}.\n\n"
-            "GUIDELINES FOR YOUR RESPONSE:\n"
-            "1. FOCUS ON THE SPECIFIC QUESTION ASKED: Answer the user's question directly, accurately, and concisely. "
-            "Do NOT dump unrelated sections, full medication lists, or lab tables UNLESS the user explicitly asks for them or if they directly pertain to the question.\n"
-            "2. ACCURATE ATTRIBUTION: When referencing a doctor, hospital, prescription, or lab test, ensure you attribute them to the EXACT visit where they occurred.\n"
-            "3. NATURAL & CONVERSATIONAL: Respond naturally like a knowledgeable clinical AI companion. "
-            "Use clean markdown formatting, bold key terms, and bullet points where helpful.\n"
-            "4. GENERAL HEALTH KNOWLEDGE: If the user asks general medical questions (e.g. 'What is cholesterol?', 'What should I eat?', 'Explain my diagnosis'), "
-            "provide accurate health advice using general clinical knowledge while referencing their personal health data if relevant.\n"
-            "5. NO CONTRADICTIONS: Never contradict yourself in the same response. Do not list information and then state it could not be found.\n"
-            "6. DOCUMENT SCANS: If the user asks for their document or scan image, provide the exact scan URL from the visit record in a clickable link.\n"
-            "7. DISCLAIMER: Always conclude with a brief, gentle 1-line standard medical disclaimer."
-        )
+    # First attempt: Direct HTTPX call to api.groq.com (bypasses SDK connection bugs on Linux/Render)
+    for mod in models_to_try:
+        try:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": mod,
+                "messages": [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt_to_send}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 1500
+            }
+            with httpx.Client(timeout=45.0, follow_redirects=True) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                raw_answer = data["choices"][0]["message"]["content"] or ""
 
-        prompt_to_send = prompt[:6000]
+            cleaned_answer = clean_llm_response(raw_answer)
+            if not cleaned_answer and "<think>" in raw_answer:
+                cleaned_answer = re.sub(r'<think>', '', raw_answer, flags=re.IGNORECASE).strip()
 
-        models_to_try = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "groq/compound-mini", "qwen/qwen3.6-27b"]
-        last_error = None
+            if not cleaned_answer or len(cleaned_answer) < 15:
+                cleaned_answer = _build_fallback_from_records(patient_name, user_question, structured_facts)
 
-        for mod in models_to_try:
-            try:
-                response = client.chat.completions.create(
-                    model=mod,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": prompt_to_send}
-                    ],
-                    temperature=0.2,
-                    max_tokens=1500
-                )
-
-                raw_answer = response.choices[0].message.content or ""
-                cleaned_answer = clean_llm_response(raw_answer)
-
-                # If clean_llm_response stripped an unclosed <think> tag and left nothing, try using raw_answer without <think>
-                if not cleaned_answer and "<think>" in raw_answer:
-                    cleaned_answer = re.sub(r'<think>', '', raw_answer, flags=re.IGNORECASE).strip()
-
-                # Validation checks: if answer is empty or self-contradictory, fallback
-                if not cleaned_answer or len(cleaned_answer) < 15 or "couldn't find the specific lab test results" in cleaned_answer.lower():
-                    cleaned_answer = _build_fallback_from_records(patient_name, user_question, structured_facts)
-
-                return {
-                    "question": user_question,
-                    "answer": cleaned_answer,
-                    "sources": {
-                        "visits_count": len(structured_facts.get("visits", [])),
-                        "labs_count": len(structured_facts.get("labs", [])),
-                        "matching_notes_count": len(vector_notes),
-                        "retrieved_notes": vector_notes
-                    }
+            return {
+                "question": user_question,
+                "answer": cleaned_answer,
+                "sources": {
+                    "visits_count": len(structured_facts.get("visits", [])),
+                    "labs_count": len(structured_facts.get("labs", [])),
+                    "matching_notes_count": len(vector_notes),
+                    "retrieved_notes": vector_notes
                 }
-            except Exception as ex:
-                last_error = ex
-                print(f"[QAGenerator] Model {mod} error: {ex}. Retrying with next model...")
-                continue
+            }
 
-        raise last_error or Exception("All LLM models failed.")
+        except Exception as ex:
 
-    except Exception as e:
-        print(f"[QAGenerator] LLM error: {e}")
-        fallback = _build_fallback_from_records(patient_name, user_question, structured_facts)
-        return {
-            "question": user_question,
-            "answer": fallback,
-            "sources": {"error": str(e)}
-        }
+            last_error = ex
+            print(f"[QAGenerator] HTTPX model {mod} error: {ex}. Retrying...")
+            continue
+
+    print(f"[QAGenerator] All models failed, last error: {last_error}")
+    fallback = _build_fallback_from_records(patient_name, user_question, structured_facts)
+    return {
+        "question": user_question,
+        "answer": fallback,
+        "sources": {"error": str(last_error)}
+    }
+
 
 
 def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[str, Any]) -> str:
