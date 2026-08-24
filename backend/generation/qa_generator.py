@@ -102,7 +102,7 @@ def answer_patient_question(
 
         prompt_to_send = prompt[:6000]
 
-        models_to_try = ["groq/compound", "openai/gpt-oss-120b", "groq/compound-mini"]
+        models_to_try = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "groq/compound-mini", "qwen/qwen3.6-27b"]
         last_error = None
 
         for mod in models_to_try:
@@ -114,11 +114,15 @@ def answer_patient_question(
                         {"role": "user", "content": prompt_to_send}
                     ],
                     temperature=0.2,
-                    max_tokens=900
+                    max_tokens=1500
                 )
 
                 raw_answer = response.choices[0].message.content or ""
                 cleaned_answer = clean_llm_response(raw_answer)
+
+                # If clean_llm_response stripped an unclosed <think> tag and left nothing, try using raw_answer without <think>
+                if not cleaned_answer and "<think>" in raw_answer:
+                    cleaned_answer = re.sub(r'<think>', '', raw_answer, flags=re.IGNORECASE).strip()
 
                 # Validation checks: if answer is empty or self-contradictory, fallback
                 if not cleaned_answer or len(cleaned_answer) < 15 or "couldn't find the specific lab test results" in cleaned_answer.lower():
@@ -172,7 +176,20 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
             return "\n".join(lines)
         return f"I couldn't find any uploaded document scan links in your records, {patient_name}."
 
-    # 1. Doctor / Last Visit query
+    # 1. Medication query (HIGHER PRIORITY THAN DOCTOR QUERY SO 'medicines prescribed by doctor' MATCHES MEDS)
+    if any(w in q for w in ["medicine", "medication", "drug", "prescri", "pill", "tablet", "dosage", "treatment"]):
+        if meds:
+            lines = [f"Here are your active medications, {patient_name}:\n"]
+            for m in meds:
+                freq_str = f" — {m['frequency']}" if m.get('frequency') else ""
+                dur_str = f" ({m['duration_days']})" if m.get('duration_days') else ""
+                purpose_str = f" for {m['purpose']}" if m.get('purpose') else ""
+                lines.append(f"• **{m.get('drug_name')}** ({m.get('dosage', 'N/A')}){freq_str}{dur_str}{purpose_str}")
+            lines.append("\n*Disclaimer: This information is derived from your uploaded medical records.*")
+            return "\n".join(lines)
+        return f"No active medications are currently recorded in your profile, {patient_name}."
+
+    # 2. Doctor / Last Visit query
     if any(w in q for w in ["doctor", "physician", "consult", "last visit", "who did i see", "which doctor"]):
         if visits:
             latest = visits[0]
@@ -186,17 +203,6 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
             return resp
         return f"I couldn't find any doctor visits recorded in your profile yet, {patient_name}."
 
-    # 2. Medication query
-    if any(w in q for w in ["medicine", "medication", "drug", "prescri", "pill", "tablet", "dosage"]):
-        if meds:
-            lines = [f"Here are your active medications, {patient_name}:\n"]
-            for m in meds:
-                freq_str = f" — {m['frequency']}" if m.get('frequency') else ""
-                dur_str = f" ({m['duration_days']})" if m.get('duration_days') else ""
-                lines.append(f"• **{m.get('drug_name')}** ({m.get('dosage', 'N/A')}){freq_str}{dur_str}")
-            lines.append("\n*Disclaimer: This information is derived from your uploaded medical records.*")
-            return "\n".join(lines)
-        return f"No active medications are currently recorded in your profile, {patient_name}."
 
     # 3. Lab query / medical interpretation (handles typos like 'cholestrol', 'colestrol', etc.)
     if any(w in q for w in ["lab", "test", "cholesterol", "cholestrol", "colestrol", "lipid", "blood", "report", "result", "diet", "eat", "food", "reduce"]):
