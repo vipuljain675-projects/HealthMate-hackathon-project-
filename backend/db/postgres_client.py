@@ -19,6 +19,11 @@ if raw_db_url.startswith("postgres://"):
 if "sslmode=require" not in raw_db_url and "?" not in raw_db_url:
     raw_db_url = f"{raw_db_url}?sslmode=require"
 
+# Auto-correct wrong pooler region if injected via Render environment variables
+if "kywqmkjnavtbpkiarwxt" in raw_db_url and "pooler.supabase.com" in raw_db_url:
+    import re
+    raw_db_url = re.sub(r"aws-0-[a-z0-9-]+\.pooler\.supabase\.com", "aws-0-ap-northeast-2.pooler.supabase.com", raw_db_url)
+
 engine: Engine = create_engine(raw_db_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
