@@ -40,8 +40,10 @@ export function usePushNotifications() {
 
     try {
       const reg = await navigator.serviceWorker.register('/sw.js');
+      try { await reg.update(); } catch (e) {}
       await navigator.serviceWorker.ready;
-      console.log('[Push] Service Worker ready:', reg.scope);
+      console.log('[Push] Service Worker ready and updated:', reg.scope);
+
 
       const keyRes = await fetch(`${BACKEND_URL}/api/vapid-public-key`);
       if (!keyRes.ok) return;

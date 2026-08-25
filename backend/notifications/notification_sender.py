@@ -105,7 +105,7 @@ def send_web_push_notification(
     subscription_info: Dict[str, Any],
     title: str,
     body: str,
-    icon: str = "/icon.png",
+    icon: str = "https://health-mate-hackathon-project.vercel.app/icon.png",
     data: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
@@ -115,9 +115,10 @@ def send_web_push_notification(
     payload = json.dumps({
         "title": title,
         "body": body,
-        "icon": icon,
+        "icon": icon if icon.startswith("http") else f"https://health-mate-hackathon-project.vercel.app{icon}",
         "data": data or {}
     })
+
 
     if not VAPID_PRIVATE_KEY or not VAPID_PUBLIC_KEY:
         print(f"[WebPush Console Notification] 🔔 {title}: {body}")
