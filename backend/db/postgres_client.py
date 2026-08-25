@@ -279,6 +279,63 @@ def get_patient_reminders(db: Session, patient_id: uuid.UUID, active_only: bool 
     return query.all()
 
 
+def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> List[Reminder]:
+    """
+    Parses active medications for a patient, infers standard alarm schedules based on frequency,
+    and automatically creates Reminder records if they don't already exist.
+    """
+    meds = db.query(Medication).filter(
+        Medication.patient_id == patient_id,
+        Medication.status == "active"
+    ).all()
+
+    created_reminders = []
+
+    for med in meds:
+        freq_str = (med.frequency or "").lower()
+        times_to_schedule = []
+
+        if "three" in freq_str or "thrice" in freq_str or "3" in freq_str or "tds" in freq_str or "tid" in freq_str:
+            times_to_schedule = ["08:00", "14:00", "20:00"]
+        elif "twice" in freq_str or "two" in freq_str or "2" in freq_str or "bd" in freq_str or "bid" in freq_str:
+            times_to_schedule = ["08:00", "20:00"]
+        elif "four" in freq_str or "4" in freq_str or "qds" in freq_str or "qid" in freq_str:
+            times_to_schedule = ["08:00", "12:00", "16:00", "20:00"]
+        elif "once" in freq_str or "1" in freq_str or "od" in freq_str or "daily" in freq_str:
+            times_to_schedule = ["08:00"]
+        else:
+            times_to_schedule = ["09:00"]
+
+        for t in times_to_schedule:
+            # Check if reminder already exists for this medicine and time
+            existing = db.query(Reminder).filter(
+                Reminder.patient_id == patient_id,
+                Reminder.medicine_name.ilike(med.drug_name),
+                Reminder.time_of_day == t
+            ).first()
+
+            if not existing:
+                r = Reminder(
+                    id=uuid.uuid4(),
+                    patient_id=patient_id,
+                    medication_id=med.id,
+                    medicine_name=med.drug_name,
+                    dosage=med.dosage,
+                    time_of_day=t,
+                    frequency=med.frequency or "daily",
+                    notes=f"Auto-generated from prescription ({med.purpose or 'medication'})",
+                    active=True
+                )
+                db.add(r)
+                created_reminders.append(r)
+
+    if created_reminders:
+        db.commit()
+
+    return get_patient_reminders(db, patient_id)
+
+
+
 # ==========================================
 # Appointment Operations
 # ==========================================

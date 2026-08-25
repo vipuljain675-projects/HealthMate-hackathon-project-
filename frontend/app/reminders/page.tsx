@@ -58,6 +58,24 @@ export default function RemindersPage() {
     finally { setIsAdding(false); }
   };
 
+  const handleSyncFromPrescriptions = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/reminders/auto-sync`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReminders(data);
+      }
+    } catch (e) {
+      console.error('Error auto-syncing reminders:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { fetchReminders(); }, []);
 
   const statusConfig = {
@@ -76,15 +94,24 @@ export default function RemindersPage() {
 
       <div className="space-y-8 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="border-b border-gray-800 pb-6">
-          <div className="inline-flex items-center space-x-2 text-teal-400 text-xs font-semibold uppercase tracking-wider mb-1">
-            <Bell className="w-4 h-4" />
-            <span>Automated Medicine Alarms</span>
+        <div className="border-b border-gray-800 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center space-x-2 text-teal-400 text-xs font-semibold uppercase tracking-wider mb-1">
+              <Bell className="w-4 h-4" />
+              <span>Automated Medicine Alarms</span>
+            </div>
+            <h1 className="text-3xl font-bold text-white tracking-tight">
+              Medicine <span className="gradient-text">Reminders</span>
+            </h1>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            Medicine <span className="gradient-text">Reminders</span>
-          </h1>
+          <button
+            onClick={handleSyncFromPrescriptions}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-teal-500/20 transition-all cursor-pointer"
+          >
+            <span>✨ Sync Alarms from Prescriptions</span>
+          </button>
         </div>
+
 
         {/* Notification Status Banner */}
         <div className={`glass-card rounded-2xl p-5 border ${cfg.color} flex flex-col sm:flex-row sm:items-center gap-4`}>

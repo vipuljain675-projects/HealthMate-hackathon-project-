@@ -18,7 +18,8 @@ from db.postgres_client import (
     get_patient_medications,
     get_patient_labs,
     get_patient_reminders,
-    get_patient_appointments
+    get_patient_appointments,
+    auto_sync_reminders_from_medications
 )
 from db.models import Patient
 from db.vector_client import add_visit_note_embedding, add_lab_results_embedding, add_medication_embedding
@@ -708,7 +709,16 @@ async def process_ocr_scan_upload(
             visit_date=str(visit_date)
         )
 
+    # 8. Auto-generate Alarm Reminders for extracted medications
+    if created_meds:
+        try:
+            auto_sync_reminders_from_medications(db, patient.id)
+            print(f"[OCR Ingestion] ✅ Auto-synced medicine alarms for patient {patient.id}")
+        except Exception as ex:
+            print(f"[OCR Reminders Sync Warning] {ex}")
+
     return {
+
         "status": "success",
         "message": "OCR document processed and ingested successfully",
         "file_url": file_url,
@@ -733,6 +743,8 @@ def list_reminders(
 ):
     patient = get_or_create_patient(db, auth_user_id)
     reminders = get_patient_reminders(db, patient.id)
+    if not reminders:
+        reminders = auto_sync_reminders_from_medications(db, patient.id)
     return [
         {
             "id": str(r.id),
@@ -745,6 +757,28 @@ def list_reminders(
         }
         for r in reminders
     ]
+
+
+@router.post("/reminders/auto-sync")
+def sync_reminders_from_prescriptions(
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    reminders = auto_sync_reminders_from_medications(db, patient.id)
+    return [
+        {
+            "id": str(r.id),
+            "medicine_name": r.medicine_name,
+            "dosage": r.dosage,
+            "time_of_day": r.time_of_day,
+            "frequency": r.frequency,
+            "notes": r.notes,
+            "active": r.active
+        }
+        for r in reminders
+    ]
+
 
 
 @router.post("/reminders")
