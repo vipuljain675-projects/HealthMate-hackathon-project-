@@ -102,6 +102,18 @@ def build_qa_prompt(
 
     visits_text = "\n".join(visit_blocks) if visit_blocks else "No visit records found."
 
+    # General Active Meds summary
+    active_meds = [m for m in meds if m.get("status", "active") == "active"]
+    active_meds_text = ", ".join([f"{m.get('drug_name')} {m.get('dosage','')}" for m in active_meds]) if active_meds else "None"
+
+    # Clinical Notes from vector retrieval
+    notes_lines = []
+    for idx, n in enumerate(vector_notes, 1):
+        note_text = (n.get("note") or "")[:350]
+        n_doc = format_doctor_name(n.get('doctor_name'))
+        notes_lines.append(f"Excerpt #{idx} ({n.get('date', '')}, {n_doc}): \"{note_text}\"")
+    notes_text = "\n".join(notes_lines[:4]) if notes_lines else "None"
+
     # Upcoming & Scheduled Appointments summary
     appts_blocks = []
     for a in appts:
@@ -109,6 +121,7 @@ def build_qa_prompt(
         a_str = f"• {a.get('appointment_date')} at {a.get('appointment_time', 'scheduled time')}: {doc_name} at {a.get('hospital', 'Clinic')} ({a.get('reason', 'Consultation')}) [Status: {a.get('status', 'upcoming')}]"
         appts_blocks.append(a_str)
     appts_text = "\n".join(appts_blocks) if appts_blocks else "None scheduled."
+
 
     return f"""PATIENT NAME: {patient_name}
 
