@@ -13,47 +13,34 @@ self.addEventListener('activate', (event) => {
 
 // Handle incoming push notifications
 self.addEventListener('push', (event) => {
-  let payload = {
-    title: '💊 HealthVault Reminder',
+  let title = '💊 HealthVault Reminder';
+  let options = {
     body: 'You have a medicine reminder!',
     icon: '/icon.png',
     badge: '/icon.png',
+    tag: 'healthvault-' + Date.now(),
+    requireInteraction: true,
     data: {}
   };
 
   if (event.data) {
     try {
       const raw = event.data.json();
-      payload = {
-        title: raw.title || payload.title,
-        body: raw.body || payload.body,
-        icon: raw.icon || '/icon.png',
-        badge: '/icon.png',
-        data: raw.data || {},
-        vibrate: [200, 100, 200],
-        requireInteraction: true,
-        actions: [
-          { action: 'taken', title: '✅ Taken' },
-          { action: 'snooze', title: '⏰ Snooze 10min' }
-        ]
-      };
+      title = raw.title || title;
+      options.body = raw.body || options.body;
+      options.icon = raw.icon || '/icon.png';
+      options.badge = '/icon.png';
+      options.data = raw.data || {};
     } catch (e) {
-      payload.body = event.data.text();
+      options.body = event.data.text();
     }
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: payload.icon,
-      badge: payload.badge,
-      vibrate: payload.vibrate || [200, 100, 200],
-      requireInteraction: payload.requireInteraction || false,
-      data: payload.data,
-      actions: payload.actions || []
-    })
+    self.registration.showNotification(title, options)
   );
 });
+
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
