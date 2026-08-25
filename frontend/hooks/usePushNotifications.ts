@@ -50,23 +50,17 @@ export function usePushNotifications() {
 
       const applicationServerKey = urlBase64ToUint8Array(vapid_public_key);
 
-      // Always get a fresh subscription to avoid stale/deprecated FCM endpoints
+      // Reuse existing subscription if one exists, only create new if needed
       let sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        // Check if endpoint is the deprecated fcm/send format — force refresh
-        if (sub.endpoint.includes('fcm/send')) {
-          console.log('[Push] Detected deprecated FCM endpoint — refreshing subscription...');
-          await sub.unsubscribe();
-          sub = null;
-        }
-      }
 
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: applicationServerKey as unknown as BufferSource
         });
-        console.log('[Push] New subscription endpoint:', sub.endpoint.substring(0, 60) + '...');
+        console.log('[Push] New subscription created:', sub.endpoint.substring(0, 60) + '...');
+      } else {
+        console.log('[Push] Reusing existing subscription:', sub.endpoint.substring(0, 60) + '...');
       }
 
       const subJson = sub.toJSON();
