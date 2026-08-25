@@ -144,16 +144,48 @@ def send_web_push_notification(
         return True
 
     except Exception as e:
+        err_str = str(e)
         print(f"[WebPush Error] ❌ Failed: {e}")
+        # 410 Gone = subscription expired/unsubscribed — return signal to caller
+        if '410' in err_str or 'unsubscribed or expired' in err_str:
+            return None  # type: ignore[return-value]  # caller will delete from DB
         return False
 
 
 
+def delete_push_subscription(patient_id: str):
+    """Delete an expired/unsubscribed push subscription from DB and RAM."""
+    patient_id_str = str(patient_id)
+    _push_subscriptions.pop(patient_id_str, None)
+    try:
+        from db.postgres_client import SessionLocal
+        from db.models import PushSubscription
+        db = SessionLocal()
+        db.query(PushSubscription).filter(
+            PushSubscription.patient_id == patient_id_str
+        ).delete()
+        db.commit()
+        db.close()
+        print(f"[WebPush] 🗑️ Deleted stale subscription for patient {patient_id_str} — will re-register on next site visit.")
+    except Exception as e:
+        print(f"[WebPush DB Delete Error] {e}")
+
+
 def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] = None) -> bool:
     """High-level helper: look up subscription and send push to a patient."""
-    subscription = get_push_subscription(str(patient_id))
+    patient_id_str = str(patient_id)
+    subscription = get_push_subscription(patient_id_str)
     if not subscription:
-        print(f"[WebPush] No subscription found for patient {patient_id} — console fallback.")
+        print(f"[WebPush] No subscription found for patient {patient_id_str} — console fallback.")
         print(f"[🔔 Console Notification] {title}: {body}")
         return True
-    return send_web_push_notification(subscription, title=title, body=body, data=data)
+
+    result = send_web_push_notification(subscription, title=title, body=body, data=data)
+
+    # 410 Gone — subscription expired, auto-delete so it refreshes on next login
+    if result is None:
+        delete_push_subscription(patient_id_str)
+        print(f"[🔔 Console Notification] {title}: {body}")
+        return True
+
+    return result
