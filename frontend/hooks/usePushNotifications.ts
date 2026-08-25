@@ -15,17 +15,75 @@ export interface ReminderToast {
   timestamp: Date;
 }
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export function usePushNotifications() {
   const [status, setStatus] = useState<NotifStatus>('idle');
   const [message, setMessage] = useState('');
   const [toasts, setToasts] = useState<ReminderToast[]>([]);
   const firedRef = useRef<Set<string>>(new Set());
 
+  const registerServiceWorkerAndSubscribe = useCallback(async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.log('[Push] Service Worker or PushManager not supported');
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      console.log('[Push] Service Worker ready:', reg.scope);
+
+      const keyRes = await fetch(`${BACKEND_URL}/api/vapid-public-key`);
+      if (!keyRes.ok) return;
+      const { vapid_public_key } = await keyRes.json();
+      if (!vapid_public_key) return;
+
+      const applicationServerKey = urlBase64ToUint8Array(vapid_public_key);
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        });
+      }
+
+      const subJson = sub.toJSON();
+      await fetch(`${BACKEND_URL}/api/push-subscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...AUTH_HEADER
+        },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: subJson.keys
+        })
+      });
+      console.log('[Push] ✅ Web Push subscription registered with backend successfully!');
+    } catch (err) {
+      console.error('[Push] Web Push subscription error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!('Notification' in window)) { setStatus('unsupported'); return; }
-    if (Notification.permission === 'granted') setStatus('granted');
-    else if (Notification.permission === 'denied') setStatus('denied');
-  }, []);
+    if (Notification.permission === 'granted') {
+      setStatus('granted');
+      registerServiceWorkerAndSubscribe();
+    } else if (Notification.permission === 'denied') {
+      setStatus('denied');
+    }
+  }, [registerServiceWorkerAndSubscribe]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -62,7 +120,7 @@ export function usePushNotifications() {
     // 2. Play beep sound
     playBeep();
 
-    // 3. Try OS notification as bonus (may or may not show based on macOS settings)
+    // 3. Try OS notification as bonus
     if (Notification.permission === 'granted') {
       try {
         new Notification(title, { body, icon: '/icon.png', requireInteraction: true, tag: fireKey });
@@ -102,14 +160,15 @@ export function usePushNotifications() {
     const perm = await Notification.requestPermission();
     if (perm === 'granted') {
       setStatus('granted');
-      setMessage('✅ Browser notifications also enabled as bonus!');
+      setMessage('✅ Background Web Push notifications enabled! Alerts will arrive even when site is closed.');
+      await registerServiceWorkerAndSubscribe();
     } else {
       setStatus('denied');
       setMessage('OS notifications blocked — in-app alerts + sound will still work!');
     }
   };
 
-  const sendTestNotification = () => {
+  const sendTestNotification = async () => {
     const mockReminder = {
       id: 'test-' + Date.now(),
       medicine_name: 'Test Medicine',
@@ -117,8 +176,19 @@ export function usePushNotifications() {
       time_of_day: new Date().toTimeString().slice(0, 5)
     };
     fireReminderAlert(mockReminder, `test-${Date.now()}`);
-    setMessage('Test alert fired! Check the notification banner above.');
+
+    // Also trigger backend Web Push test endpoint
+    try {
+      await fetch(`${BACKEND_URL}/api/push-test`, {
+        method: 'POST',
+        headers: AUTH_HEADER
+      });
+      setMessage('Test alert fired & OS Push sent! Check your notification center.');
+    } catch (e) {
+      setMessage('Test alert fired! Check notification banner above.');
+    }
   };
 
   return { status, message, toasts, dismissToast, enableNotifications, sendTestNotification };
 }
+
