@@ -281,7 +281,9 @@ def get_patient_reminders(db: Session, patient_id: uuid.UUID, active_only: bool 
 
 def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> List[Reminder]:
     """
-    Parses active medications for a patient, infers standard alarm schedules based on frequency,
+    Parses active medications for a patient, infers standard alarm schedules based on:
+    - Frequency (e.g. "once daily", "twice daily", "three times daily")
+    - Clinical Meal/Time Directives (e.g. "after lunch", "bedtime", "after breakfast", "before dinner")
     and automatically creates Reminder records if they don't already exist.
     """
     meds = db.query(Medication).filter(
@@ -292,22 +294,46 @@ def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> 
     created_reminders = []
 
     for med in meds:
-        freq_str = (med.frequency or "").lower()
-        times_to_schedule = []
+        text_to_parse = f"{(med.frequency or '')} {(med.notes or '')} {(med.purpose or '')}".lower()
+        times_with_notes = []
 
-        if "three" in freq_str or "thrice" in freq_str or "3" in freq_str or "tds" in freq_str or "tid" in freq_str:
-            times_to_schedule = ["08:00", "14:00", "20:00"]
-        elif "twice" in freq_str or "two" in freq_str or "2" in freq_str or "bd" in freq_str or "bid" in freq_str:
-            times_to_schedule = ["08:00", "20:00"]
-        elif "four" in freq_str or "4" in freq_str or "qds" in freq_str or "qid" in freq_str:
-            times_to_schedule = ["08:00", "12:00", "16:00", "20:00"]
-        elif "once" in freq_str or "1" in freq_str or "od" in freq_str or "daily" in freq_str:
-            times_to_schedule = ["08:00"]
-        else:
-            times_to_schedule = ["09:00"]
+        # Check for specific meal/time directives first
+        if "bed" in text_to_parse or "night" in text_to_parse or "hs" in text_to_parse or "sleep" in text_to_parse:
+            times_with_notes.append(("22:00", "Take at bedtime"))
 
-        for t in times_to_schedule:
-            # Check if reminder already exists for this medicine and time
+        if "lunch" in text_to_parse:
+            if "before" in text_to_parse:
+                times_with_notes.append(("13:00", "Take 30m before lunch"))
+            else:
+                times_with_notes.append(("14:30", "Take after lunch"))
+
+        if "breakfast" in text_to_parse or "morning" in text_to_parse:
+            if "before" in text_to_parse or "empty" in text_to_parse:
+                times_with_notes.append(("07:30", "Take on empty stomach before breakfast"))
+            else:
+                times_with_notes.append(("09:00", "Take after breakfast"))
+
+        if "dinner" in text_to_parse:
+            if "before" in text_to_parse:
+                times_with_notes.append(("19:30", "Take before dinner"))
+            else:
+                times_with_notes.append(("21:00", "Take after dinner"))
+
+        # If no specific meal directive was found, fall back to standard frequency schedules
+        if not times_with_notes:
+            freq_str = text_to_parse
+            if "three" in freq_str or "thrice" in freq_str or "3" in freq_str or "tds" in freq_str or "tid" in freq_str:
+                times_with_notes = [("08:00", "Morning dose"), ("14:00", "Afternoon dose"), ("20:00", "Evening dose")]
+            elif "twice" in freq_str or "two" in freq_str or "2" in freq_str or "bd" in freq_str or "bid" in freq_str:
+                times_with_notes = [("08:00", "Morning dose"), ("20:00", "Evening dose")]
+            elif "four" in freq_str or "4" in freq_str or "qds" in freq_str or "qid" in freq_str:
+                times_with_notes = [("08:00", "8:00 AM"), ("12:00", "12:00 PM"), ("16:00", "4:00 PM"), ("20:00", "8:00 PM")]
+            elif "once" in freq_str or "1" in freq_str or "od" in freq_str or "daily" in freq_str:
+                times_with_notes = [("08:00", "Daily dose")]
+            else:
+                times_with_notes = [("09:00", "Scheduled dose")]
+
+        for t, note_text in times_with_notes:
             existing = db.query(Reminder).filter(
                 Reminder.patient_id == patient_id,
                 Reminder.medicine_name.ilike(med.drug_name),
@@ -315,6 +341,7 @@ def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> 
             ).first()
 
             if not existing:
+                full_notes = f"{note_text} ({med.purpose or 'prescription'})" if med.purpose else note_text
                 r = Reminder(
                     id=uuid.uuid4(),
                     patient_id=patient_id,
@@ -323,7 +350,7 @@ def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> 
                     dosage=med.dosage,
                     time_of_day=t,
                     frequency=med.frequency or "daily",
-                    notes=f"Auto-generated from prescription ({med.purpose or 'medication'})",
+                    notes=full_notes,
                     active=True
                 )
                 db.add(r)
@@ -333,6 +360,7 @@ def auto_sync_reminders_from_medications(db: Session, patient_id: uuid.UUID) -> 
         db.commit()
 
     return get_patient_reminders(db, patient_id)
+
 
 
 
