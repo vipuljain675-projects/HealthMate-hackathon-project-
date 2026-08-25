@@ -5,9 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
-VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@healthvault.app")
+raw_priv = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+VAPID_PRIVATE_KEY = raw_priv.replace("\\n", "\n").strip("\"'")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip().strip("\"'")
+VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@healthvault.app").strip()
+
 
 _push_subscriptions: Dict[str, Dict] = {}
 
