@@ -139,10 +139,15 @@ def send_web_push_notification(
             subscription_info=subscription_info,
             data=payload,
             vapid_private_key=key_to_use,
-            vapid_claims={"sub": VAPID_CLAIMS_SUB}
+            vapid_claims={"sub": VAPID_CLAIMS_SUB},
+            headers={
+                "TTL": "86400",
+                "Urgency": "high"
+            }
         )
-        print(f"[WebPush Sent] ✅ Delivered: '{title}'")
+        print(f"[WebPush Sent] ✅ High-Urgency Delivered: '{title}'")
         return True
+
 
     except Exception as e:
         err_str = str(e)
