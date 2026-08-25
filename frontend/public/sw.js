@@ -13,12 +13,14 @@ self.addEventListener('activate', (event) => {
 
 // Handle incoming push notifications
 self.addEventListener('push', (event) => {
+  const origin = self.location.origin || 'https://health-mate-hackathon-project.vercel.app';
   let title = '💊 HealthVault Reminder';
   let options = {
     body: 'You have a medicine reminder!',
-    icon: '/icon.png',
-    badge: '/icon.png',
-    tag: 'healthvault-' + Date.now(),
+    icon: origin + '/icon.png',
+    badge: origin + '/icon.png',
+    tag: 'healthvault-reminder',
+    renotify: true,
     requireInteraction: true,
     data: {}
   };
@@ -28,15 +30,17 @@ self.addEventListener('push', (event) => {
       const raw = event.data.json();
       title = raw.title || title;
       options.body = raw.body || options.body;
-      options.icon = raw.icon || '/icon.png';
-      options.badge = '/icon.png';
+      if (raw.icon) {
+        options.icon = raw.icon.startsWith('http') ? raw.icon : origin + raw.icon;
+      }
       options.data = raw.data || {};
     } catch (e) {
       options.body = event.data.text();
     }
   }
 
-  console.log('[SW] Push received! Title:', title, '| Body:', options.body);
+  console.log('[SW] Push event received! Displaying notification:', title, options.body);
+
 
   event.waitUntil(
     self.registration.showNotification(title, options)
