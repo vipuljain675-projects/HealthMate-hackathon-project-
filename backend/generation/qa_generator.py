@@ -195,7 +195,19 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
             return "\n".join(lines)
         return f"No active medications are currently recorded in your profile, {patient_name}."
 
-    # 2. Doctor / Last Visit query
+    # 2. Appointment / Scheduled visit query
+    if any(w in q for w in ["appointment", "appt", "schedule", "upcoming", "next visit", "booking", "when is my doctor"]):
+        appts = structured_facts.get("appointments", [])
+        if appts:
+            lines = [f"Here are your upcoming appointments, {patient_name}:\n"]
+            for a in appts:
+                doc_name = format_doctor_name(a.get("doctor_name"))
+                lines.append(f"• **{a.get('appointment_date')} at {a.get('appointment_time', 'N/A')}** — {doc_name} at {a.get('hospital', 'Hospital/Clinic')} (*{a.get('reason', 'Consultation')}*)")
+            lines.append("\n*Disclaimer: Derived from your recorded appointments in HealthVault.*")
+            return "\n".join(lines)
+        return f"You don't have any upcoming appointments scheduled in your profile, {patient_name}."
+
+    # 2b. Doctor / Last Visit query
     if any(w in q for w in ["doctor", "physician", "consult", "last visit", "who did i see", "which doctor"]):
         if visits:
             latest = visits[0]
@@ -208,6 +220,7 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
             resp += "\n\n*Disclaimer: This information is derived from your uploaded medical records.*"
             return resp
         return f"I couldn't find any doctor visits recorded in your profile yet, {patient_name}."
+
 
 
     # 3. Lab query / medical interpretation (handles typos like 'cholestrol', 'colestrol', etc.)
