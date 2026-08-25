@@ -112,3 +112,15 @@ class Appointment(Base):
     status = Column(String, default="upcoming")  # "upcoming" / "completed" / "cancelled"
 
     patient = relationship("Patient", back_populates="appointments")
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(String, nullable=False, index=True)
+    endpoint = Column(Text, nullable=False)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+

@@ -9,20 +9,85 @@ VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
 VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@healthvault.app")
 
-# In-memory push subscription store (keyed by patient_id)
-# In production: store in DB table
 _push_subscriptions: Dict[str, Dict] = {}
 
 
 def save_push_subscription(patient_id: str, subscription: Dict[str, Any]):
-    """Save a browser push subscription for a patient."""
-    _push_subscriptions[patient_id] = subscription
-    print(f"[WebPush] Saved push subscription for patient {patient_id}")
+    """Save or update a browser push subscription in PostgreSQL DB + RAM."""
+    patient_id_str = str(patient_id)
+    _push_subscriptions[patient_id_str] = subscription
+
+    endpoint = subscription.get("endpoint", "")
+    keys = subscription.get("keys", {})
+    p256dh = keys.get("p256dh", "")
+    auth = keys.get("auth", "")
+
+    if not endpoint or not p256dh or not auth:
+        print(f"[WebPush] Invalid subscription payload for patient {patient_id_str}")
+        return
+
+    try:
+        from db.postgres_client import SessionLocal
+        from db.models import PushSubscription
+        from datetime import datetime
+
+        db = SessionLocal()
+        existing = db.query(PushSubscription).filter(
+            PushSubscription.patient_id == patient_id_str
+        ).first()
+
+        if existing:
+            existing.endpoint = endpoint
+            existing.p256dh = p256dh
+            existing.auth = auth
+            existing.updated_at = datetime.utcnow()
+        else:
+            sub_rec = PushSubscription(
+                patient_id=patient_id_str,
+                endpoint=endpoint,
+                p256dh=p256dh,
+                auth=auth
+            )
+            db.add(sub_rec)
+
+        db.commit()
+        db.close()
+        print(f"[WebPush] ✅ Saved push subscription in DB for patient {patient_id_str}")
+    except Exception as e:
+        print(f"[WebPush DB Save Error] {e}")
 
 
 def get_push_subscription(patient_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieve stored push subscription for a patient."""
-    return _push_subscriptions.get(patient_id)
+    """Retrieve stored push subscription for a patient from RAM or PostgreSQL DB."""
+    patient_id_str = str(patient_id)
+    if patient_id_str in _push_subscriptions:
+        return _push_subscriptions[patient_id_str]
+
+    try:
+        from db.postgres_client import SessionLocal
+        from db.models import PushSubscription
+
+        db = SessionLocal()
+        sub_rec = db.query(PushSubscription).filter(
+            PushSubscription.patient_id == patient_id_str
+        ).order_by(PushSubscription.updated_at.desc()).first()
+        db.close()
+
+        if sub_rec:
+            sub = {
+                "endpoint": sub_rec.endpoint,
+                "keys": {
+                    "p256dh": sub_rec.p256dh,
+                    "auth": sub_rec.auth
+                }
+            }
+            _push_subscriptions[patient_id_str] = sub
+            return sub
+    except Exception as e:
+        print(f"[WebPush DB Fetch Error] {e}")
+
+    return None
+
 
 
 def send_web_push_notification(
