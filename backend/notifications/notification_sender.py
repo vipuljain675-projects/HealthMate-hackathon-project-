@@ -92,6 +92,15 @@ def get_push_subscription(patient_id: str) -> Optional[Dict[str, Any]]:
 
 
 
+_vapid_instance = None
+if VAPID_PRIVATE_KEY:
+    try:
+        from pywebpush import Vapid
+        _vapid_instance = Vapid.from_pem(VAPID_PRIVATE_KEY.encode('utf-8'))
+    except Exception as ex:
+        print(f"[WebPush VAPID Init Warning] {ex}")
+
+
 def send_web_push_notification(
     subscription_info: Dict[str, Any],
     title: str,
@@ -119,12 +128,16 @@ def send_web_push_notification(
         return True
 
     try:
-        from pywebpush import webpush, WebPushException
+        from pywebpush import webpush, WebPushException, Vapid
+
+        key_to_use = _vapid_instance
+        if not key_to_use:
+            key_to_use = Vapid.from_pem(VAPID_PRIVATE_KEY.encode('utf-8'))
 
         webpush(
             subscription_info=subscription_info,
             data=payload,
-            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_private_key=key_to_use,
             vapid_claims={"sub": VAPID_CLAIMS_SUB}
         )
         print(f"[WebPush Sent] ✅ Delivered: '{title}'")
@@ -133,6 +146,7 @@ def send_web_push_notification(
     except Exception as e:
         print(f"[WebPush Error] ❌ Failed: {e}")
         return False
+
 
 
 def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] = None) -> bool:
