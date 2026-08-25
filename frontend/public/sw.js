@@ -36,8 +36,16 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  console.log('[SW] Push received! Title:', title, '| Body:', options.body);
+
   event.waitUntil(
     self.registration.showNotification(title, options)
+      .then(() => {
+        console.log('[SW] ✅ Notification shown successfully!');
+      })
+      .catch((err) => {
+        console.error('[SW] ❌ showNotification failed:', err);
+      })
   );
 });
 
