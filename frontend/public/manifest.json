@@ -1,0 +1,41 @@
+{
+  "name": "HealthVault - Personal Health OS",
+  "short_name": "HealthVault",
+  "description": "Your AI-powered personal health assistant with medicine reminders, health timeline, and document scanning.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0ea5e9",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "medical"],
+  "shortcuts": [
+    {
+      "name": "Reminders",
+      "short_name": "Reminders",
+      "description": "View medicine reminders",
+      "url": "/reminders",
+      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Assistant",
+      "short_name": "Ask AI",
+      "description": "Ask about your health records",
+      "url": "/ask",
+      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -6,7 +6,20 @@ import HeaderBar from '@/components/HeaderBar';
 export const metadata: Metadata = {
   title: 'HealthVault | AI Personal Health OS',
   description: 'Multimodal clinical history, OCR document extraction, and hybrid AI Q&A health assistant.',
+  manifest: '/manifest.json',
+  themeColor: '#0ea5e9',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'HealthVault',
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
+
 
 export default function RootLayout({
   children,
