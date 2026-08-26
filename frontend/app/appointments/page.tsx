@@ -149,14 +149,17 @@ export default function AppointmentsPage() {
           {appointments.map((a: any) => (
             <AppointmentCard
               key={a.id}
+              id={a.id}
               doctor_name={a.doctor_name}
               hospital={a.hospital}
               appointment_date={a.appointment_date}
               appointment_time={a.appointment_time}
               reason={a.reason}
               status={a.status}
+              onRefresh={fetchAppointments}
             />
           ))}
+
         </div>
       )}
     </div>

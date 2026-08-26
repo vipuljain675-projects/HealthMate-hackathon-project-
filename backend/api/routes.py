@@ -88,6 +88,16 @@ class AppointmentCreateRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class AppointmentUpdateRequest(BaseModel):
+    doctor_name: Optional[str] = None
+    hospital: Optional[str] = None
+    appointment_date: Optional[date] = None
+    appointment_time: Optional[str] = None
+    reason: Optional[str] = None
+    status: Optional[str] = None
+
+
+
 class PushSubscriptionRequest(BaseModel):
     endpoint: str
     keys: dict
@@ -991,3 +1001,59 @@ def delete_reminder(
     db.delete(r)
     db.commit()
     return {"status": "deleted", "reminder_id": reminder_id}
+
+
+@router.put("/appointments/{appointment_id}")
+def update_appointment(
+    appointment_id: str,
+    payload: AppointmentUpdateRequest,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Appointment
+    a = db.query(Appointment).filter(
+        Appointment.id == uuid.UUID(appointment_id),
+        Appointment.patient_id == patient.id
+    ).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    if payload.doctor_name is not None: a.doctor_name = payload.doctor_name
+    if payload.hospital is not None: a.hospital = payload.hospital
+    if payload.appointment_date is not None: a.appointment_date = payload.appointment_date
+    if payload.appointment_time is not None: a.appointment_time = payload.appointment_time
+    if payload.reason is not None: a.reason = payload.reason
+    if payload.status is not None: a.status = payload.status
+
+    db.commit()
+    db.refresh(a)
+    return {
+        "id": str(a.id),
+        "doctor_name": a.doctor_name,
+        "hospital": a.hospital,
+        "appointment_date": str(a.appointment_date),
+        "appointment_time": a.appointment_time,
+        "reason": a.reason,
+        "status": a.status
+    }
+
+
+@router.delete("/appointments/{appointment_id}")
+def delete_appointment(
+    appointment_id: str,
+    auth_user_id: str = Depends(verify_supabase_token),
+    db: Session = Depends(get_db)
+):
+    patient = get_or_create_patient(db, auth_user_id)
+    from db.models import Appointment
+    a = db.query(Appointment).filter(
+        Appointment.id == uuid.UUID(appointment_id),
+        Appointment.patient_id == patient.id
+    ).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    db.delete(a)
+    db.commit()
+    return {"status": "deleted", "appointment_id": appointment_id}
+
