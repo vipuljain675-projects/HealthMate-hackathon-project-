@@ -52,6 +52,19 @@ function MessageContent({ text }: { text: string }) {
           th: ({ children }) => <th className="px-4 py-3 font-bold text-teal-300 border-b border-gray-800">{children}</th>,
           td: ({ children }) => <td className="px-4 py-3 text-gray-200 border-b border-gray-800/40 align-top whitespace-normal break-words">{children}</td>,
           tr: ({ children }) => <tr className="hover:bg-white/[0.02] transition-colors">{children}</tr>,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-teal-300 hover:text-white font-bold bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500/20 px-3 py-1.5 rounded-lg shadow-md hover:scale-102 transition-all my-0.5 no-underline cursor-pointer text-xs"
+            >
+              <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{children || 'Open Document Scan'}</span>
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+            </a>
+          ),
+
           p: ({ children }) => {
             const childArr = React.Children.toArray(children);
             return (
