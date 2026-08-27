@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from db.postgres_client import SessionLocal
 from db.models import Reminder
 from notifications.notification_sender import notify_patient
@@ -7,9 +7,12 @@ from notifications.notification_sender import notify_patient
 def check_due_medicine_reminders():
     """
     Background job triggered by APScheduler every minute.
-    Checks for active reminders due at current HH:MM time and sends push notifications.
+    Checks for active reminders due at current IST HH:MM time and sends notifications.
     """
-    now_time_str = datetime.now().strftime("%H:%M")
+    # Convert UTC server time to Indian Standard Time (IST = UTC + 5:30)
+    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    now_time_str = ist_now.strftime("%H:%M")
+    
     db = SessionLocal()
     try:
         reminders = db.query(Reminder).filter(
@@ -18,7 +21,7 @@ def check_due_medicine_reminders():
         ).all()
 
         if reminders:
-            print(f"[ReminderScheduler] ⏰ {len(reminders)} reminder(s) due at {now_time_str}")
+            print(f"[ReminderScheduler] ⏰ {len(reminders)} reminder(s) due at IST {now_time_str}")
 
         for r in reminders:
             title = f"💊 Medicine Reminder: {r.medicine_name}"
