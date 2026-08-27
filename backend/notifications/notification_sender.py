@@ -70,8 +70,8 @@ def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] 
 
         if patient and patient.phone_number:
             # We have a phone number! Send via WhatsApp templates (due to Sandbox restrictions)
-            # Both medicine and appointment reminders map to Twilio Sandbox approved "Appointment Reminders" template
-            content_sid = "HXfe5ab5f00277942d4d4200328b4d403c"
+            # Both medicine and appointment reminders map to Twilio Sandbox approved "Event Notifications" template
+            content_sid = "HX8dc9eea84231541b091557c47cc2a342"
             
             # Check if this is an appointment reminder
             is_appointment = "appointment" in title.lower() or (data and data.get("type") == "appointment")
@@ -84,20 +84,16 @@ def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] 
                     doctor = match.group(1).strip()
                     location = match.group(2).strip()
                     time_val = match.group(3).strip()
-                    var1 = doctor
-                    var2 = f"{time_val} ({location})"
+                    var1 = f"with {doctor} at {time_val} ({location})"
                 else:
-                    var1 = "your doctor"
-                    var2 = body
+                    var1 = f"with your doctor: {body}"
             else:
                 # For Medicine reminder
                 # Extract medicine name and dosage
                 # e.g. "Time to take your 1 Tablet dose of Paracetamol. Take after food."
-                # We want var1 = "medicine [Name]", var2 = "[Time] (Dosage: [Dosage])"
                 medicine_name = "your medicine"
                 dosage_val = ""
                 
-                # Check for standard medicine fields
                 if "dose of" in body:
                     parts = body.split("dose of")
                     if len(parts) > 1:
@@ -106,21 +102,17 @@ def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] 
                     if len(dosage_parts) > 1:
                         dosage_val = dosage_parts[1].strip()
                 
-                # If parsed successfully
                 if medicine_name != "your medicine":
-                    var1 = f"medicine {medicine_name}"
-                    var2 = f"scheduled time"
+                    var1 = f"medicine {medicine_name} now"
                     if dosage_val:
-                        var2 += f" (Dosage: {dosage_val})"
+                        var1 += f" (Dosage: {dosage_val})"
                 else:
                     var1 = title.replace("💊 Medicine Reminder:", "").strip()
-                    var2 = body
             
             content_variables = {
-                "1": var1,
-                "2": var2
+                "1": var1
             }
-            fallback_body = f"Your appointment is coming up on {var1} at {var2}"
+            fallback_body = f"Reminder: Your event starts {var1} at the scheduled venue."
             return send_whatsapp_notification(
                 to_phone=patient.phone_number,
                 body=fallback_body,
