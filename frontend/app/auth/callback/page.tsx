@@ -19,9 +19,22 @@ export default function AuthCallbackPage() {
       const stableKey = email.toLowerCase().replace(/[^a-z0-9]/g, '_');
       const authToken = `mock_user_${stableKey}`;
 
+      let existingPhone = '';
+      try {
+        const getRes = await fetch(`${BACKEND_URL}/api/me`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (getRes.ok) {
+          const profile = await getRes.json();
+          if (profile.phone_number) {
+            existingPhone = profile.phone_number;
+          }
+        }
+      } catch (_) {}
+
       // Get or create patient profile in PostgreSQL cleanly
       try {
-        await fetch(`${BACKEND_URL}/api/me`, {
+        const postRes = await fetch(`${BACKEND_URL}/api/me`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -32,9 +45,14 @@ export default function AuthCallbackPage() {
             email, 
             auth_provider: 'google', 
             age: '28 Yrs', 
-            gender: 'Male' 
+            gender: 'Male',
+            phone_number: existingPhone || null
           })
         });
+        if (postRes.ok) {
+          const updatedData = await postRes.json();
+          if (updatedData.phone_number) existingPhone = updatedData.phone_number;
+        }
       } catch (e) {
         console.warn('Sync profile note:', e);
       }
@@ -45,6 +63,7 @@ export default function AuthCallbackPage() {
         email,
         age: '28 Yrs',
         gender: 'Male',
+        phone_number: existingPhone || '',
         patient_id: `PID-${Math.floor(100000 + Math.random() * 900000)}`
       };
 

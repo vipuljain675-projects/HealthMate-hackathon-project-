@@ -126,6 +126,7 @@ class SignUpRequest(BaseModel):
     password: str
     age: Optional[str] = None
     gender: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 import hashlib
@@ -161,7 +162,8 @@ def signup_patient(payload: SignUpRequest, db: Session = Depends(get_db)):
         auth_provider="email" if payload.password != "google_oauth_protected" else "google",
         password_hash=hash_password(payload.password),
         age=payload.age or "28 Yrs",
-        gender=payload.gender or "Male"
+        gender=payload.gender or "Male",
+        phone_number=payload.phone_number.strip() if payload.phone_number else None
     )
     db.add(patient)
     db.commit()
@@ -175,6 +177,7 @@ def signup_patient(payload: SignUpRequest, db: Session = Depends(get_db)):
             "id": str(patient.id),
             "name": patient.name,
             "email": patient.email,
+            "phone_number": patient.phone_number,
             "auth_provider": patient.auth_provider,
             "password_hash": patient.password_hash,
             "age": patient.age,
@@ -209,6 +212,7 @@ def login_patient(payload: LoginRequest, db: Session = Depends(get_db)):
             "id": str(existing.id),
             "name": existing.name,
             "email": existing.email,
+            "phone_number": existing.phone_number,
             "auth_provider": existing.auth_provider or "email",
             "password_hash": existing.password_hash,
             "age": existing.age or "28 Yrs",

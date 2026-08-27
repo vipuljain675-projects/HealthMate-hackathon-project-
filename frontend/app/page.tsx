@@ -10,6 +10,7 @@ import {
   Lock, 
   Mail, 
   User, 
+  Phone,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -30,6 +31,7 @@ export default function AuthPage() {
   const [keepMeSignedIn, setKeepMeSignedIn] = useState(true);
   const [age, setAge] = useState('28 Yrs');
   const [gender, setGender] = useState('Male');
+  const [phoneNumber, setPhoneNumber] = useState('');
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
@@ -118,6 +120,7 @@ export default function AuthPage() {
           email: patientEmail,
           age: data.patient?.age || '28 Yrs',
           gender: data.patient?.gender || 'Male',
+          phone_number: data.patient?.phone_number || '',
           patient_id: `PID-${Math.floor(100000 + Math.random() * 900000)}`
         };
 
@@ -141,7 +144,8 @@ export default function AuthPage() {
             email: patientEmail,
             password,
             age,
-            gender
+            gender,
+            phone_number: phoneNumber.trim() || null
           })
         });
 
@@ -157,6 +161,7 @@ export default function AuthPage() {
           email: patientEmail,
           age: age || '28 Yrs',
           gender: gender || 'Male',
+          phone_number: data.patient?.phone_number || phoneNumber.trim() || '',
           patient_id: `PID-${Math.floor(100000 + Math.random() * 900000)}`
         };
 
@@ -420,6 +425,26 @@ export default function AuthPage() {
                   </div>
                 )}
               </div>
+
+              {authMode === 'signup' && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider block mb-1 flex items-center justify-between">
+                    <span>WhatsApp Phone Number</span>
+                    <span className="text-teal-400 font-mono text-[9px] lowercase font-normal">for instant whatsapp alarms</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-teal-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type="tel"
+                      name="phoneNumber"
+                      placeholder="e.g. +918851938806"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="w-full bg-[#051020] border border-[#162d4e] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:border-teal-500 focus:outline-none font-mono transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
 
               {authMode === 'signup' && (
                 <div className="grid grid-cols-2 gap-3">
