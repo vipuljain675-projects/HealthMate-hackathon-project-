@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import Any, List, Optional
 from sqlalchemy import Column, String, Date, DateTime, Boolean, ForeignKey, Text, Uuid
-from sqlalchemy.orm import declarative_base, relationship, Mapped
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -10,107 +10,107 @@ Base = declarative_base()
 class Patient(Base):
     __tablename__ = "patients"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    auth_user_id: Mapped[Any] = Column(String, unique=True, nullable=False, index=True)
-    name: Mapped[Any] = Column(String, nullable=False)
-    email: Mapped[Any] = Column(String, unique=True)
-    auth_provider: Mapped[Any] = Column(String, default="email")
-    password_hash: Mapped[Any] = Column(String, nullable=True)
-    age: Mapped[Any] = Column(String, default="28 Yrs")
-    gender: Mapped[Any] = Column(String, default="Male")
-    phone_number: Mapped[Any] = Column(String, nullable=True)
-    created_at: Mapped[Any] = Column(DateTime, default=datetime.utcnow)
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    auth_user_id: Any = Column(String, unique=True, nullable=False, index=True)
+    name: Any = Column(String, nullable=False)
+    email: Any = Column(String, unique=True)
+    auth_provider: Any = Column(String, default="email")
+    password_hash: Any = Column(String, nullable=True)
+    age: Any = Column(String, default="28 Yrs")
+    gender: Any = Column(String, default="Male")
+    phone_number: Any = Column(String, nullable=True)
+    created_at: Any = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    visits: Mapped[List["Visit"]] = relationship("Visit", back_populates="patient", cascade="all, delete-orphan")
-    medications: Mapped[List["Medication"]] = relationship("Medication", back_populates="patient", cascade="all, delete-orphan")
-    labs: Mapped[List["Lab"]] = relationship("Lab", back_populates="patient", cascade="all, delete-orphan")
-    reminders: Mapped[List["Reminder"]] = relationship("Reminder", back_populates="patient", cascade="all, delete-orphan")
-    appointments: Mapped[List["Appointment"]] = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
+    visits: Any = relationship("Visit", back_populates="patient", cascade="all, delete-orphan")
+    medications: Any = relationship("Medication", back_populates="patient", cascade="all, delete-orphan")
+    labs: Any = relationship("Lab", back_populates="patient", cascade="all, delete-orphan")
+    reminders: Any = relationship("Reminder", back_populates="patient", cascade="all, delete-orphan")
+    appointments: Any = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
 
 
 class Visit(Base):
     __tablename__ = "visits"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    date: Mapped[Any] = Column(Date, nullable=False)
-    hospital: Mapped[Any] = Column(String)
-    doctor_name: Mapped[Any] = Column(String)
-    reason: Mapped[Any] = Column(String)
-    diagnosis: Mapped[Any] = Column(String)
-    notes: Mapped[Any] = Column(Text)
-    original_file_url: Mapped[Any] = Column(String)
-    source_type: Mapped[Any] = Column(String, default="manual_entry")
-    created_at: Mapped[Any] = Column(DateTime, default=datetime.utcnow)
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Any = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    date: Any = Column(Date, nullable=False)
+    hospital: Any = Column(String)
+    doctor_name: Any = Column(String)
+    reason: Any = Column(String)
+    diagnosis: Any = Column(String)
+    notes: Any = Column(Text)
+    original_file_url: Any = Column(String)
+    source_type: Any = Column(String, default="manual_entry")
+    created_at: Any = Column(DateTime, default=datetime.utcnow)
 
-    patient: Mapped[Any] = relationship("Patient", back_populates="visits")
-    medications: Mapped[Any] = relationship("Medication", back_populates="visit")
-    labs: Mapped[Any] = relationship("Lab", back_populates="visit")
+    patient: Any = relationship("Patient", back_populates="visits")
+    medications: Any = relationship("Medication", back_populates="visit")
+    labs: Any = relationship("Lab", back_populates="visit")
 
 
 class Medication(Base):
     __tablename__ = "medications"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    visit_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
-    drug_name: Mapped[Any] = Column(String, nullable=False)
-    dosage: Mapped[Any] = Column(String)
-    frequency: Mapped[Any] = Column(String)
-    purpose: Mapped[Any] = Column(String)
-    duration_days: Mapped[Any] = Column(String)
-    notes: Mapped[Any] = Column(Text)
-    status: Mapped[Any] = Column(String, default="active")
-    started_on: Mapped[Any] = Column(Date)
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Any = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    visit_id: Any = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
+    drug_name: Any = Column(String, nullable=False)
+    dosage: Any = Column(String)
+    frequency: Any = Column(String)
+    purpose: Any = Column(String)
+    duration_days: Any = Column(String)
+    notes: Any = Column(Text)
+    status: Any = Column(String, default="active")
+    started_on: Any = Column(Date)
 
-    patient: Mapped[Any] = relationship("Patient", back_populates="medications")
-    visit: Mapped[Any] = relationship("Visit", back_populates="medications")
-    reminders: Mapped[Any] = relationship("Reminder", back_populates="medication")
+    patient: Any = relationship("Patient", back_populates="medications")
+    visit: Any = relationship("Visit", back_populates="medications")
+    reminders: Any = relationship("Reminder", back_populates="reminders")
 
 
 class Lab(Base):
     __tablename__ = "labs"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    visit_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
-    test_name: Mapped[Any] = Column(String, nullable=False)
-    value: Mapped[Any] = Column(String)
-    flag: Mapped[Any] = Column(String)
-    date: Mapped[Any] = Column(Date)
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Any = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    visit_id: Any = Column(Uuid(as_uuid=True), ForeignKey("visits.id"), nullable=True)
+    test_name: Any = Column(String, nullable=False)
+    value: Any = Column(String)
+    flag: Any = Column(String)
+    date: Any = Column(Date)
 
-    patient: Mapped[Any] = relationship("Patient", back_populates="labs")
-    visit: Mapped[Any] = relationship("Visit", back_populates="labs")
+    patient: Any = relationship("Patient", back_populates="labs")
+    visit: Any = relationship("Visit", back_populates="labs")
 
 
 class Reminder(Base):
     __tablename__ = "reminders"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    medication_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("medications.id"), nullable=True)
-    medicine_name: Mapped[Any] = Column(String, nullable=False)
-    dosage: Mapped[Any] = Column(String)
-    time_of_day: Mapped[Any] = Column(String)
-    frequency: Mapped[Any] = Column(String)
-    notes: Mapped[Any] = Column(Text)
-    active: Mapped[Any] = Column(Boolean, default=True)
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Any = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    medication_id: Any = Column(Uuid(as_uuid=True), ForeignKey("medications.id"), nullable=True)
+    medicine_name: Any = Column(String, nullable=False)
+    dosage: Any = Column(String)
+    time_of_day: Any = Column(String)
+    frequency: Any = Column(String)
+    notes: Any = Column(Text)
+    active: Any = Column(Boolean, default=True)
 
-    patient: Mapped[Any] = relationship("Patient", back_populates="reminders")
-    medication: Mapped[Any] = relationship("Medication", back_populates="reminders")
+    patient: Any = relationship("Patient", back_populates="reminders")
+    medication: Any = relationship("Medication", back_populates="reminders")
 
 
 class Appointment(Base):
     __tablename__ = "appointments"
 
-    id: Mapped[Any] = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[Any] = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    doctor_name: Mapped[Any] = Column(String)
-    hospital: Mapped[Any] = Column(String)
-    appointment_date: Mapped[Any] = Column(Date, nullable=False)
-    appointment_time: Mapped[Any] = Column(String)
-    reason: Mapped[Any] = Column(String)
-    status: Mapped[Any] = Column(String, default="upcoming")
+    id: Any = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Any = Column(Uuid(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    doctor_name: Any = Column(String)
+    hospital: Any = Column(String)
+    appointment_date: Any = Column(Date, nullable=False)
+    appointment_time: Any = Column(String)
+    reason: Any = Column(String)
+    status: Any = Column(String, default="upcoming")
 
-    patient: Mapped[Any] = relationship("Patient", back_populates="appointments")
+    patient: Any = relationship("Patient", back_populates="appointments")
