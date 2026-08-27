@@ -30,11 +30,7 @@ from ingestion.file_storage import upload_scan_file
 from retrieval.structured_retriever import retrieve_structured_patient_facts
 from generation.timeline_summarizer import generate_timeline_summary
 from generation.qa_generator import answer_patient_question
-from notifications.notification_sender import (
-    save_push_subscription,
-    notify_patient,
-    VAPID_PUBLIC_KEY
-)
+from notifications.notification_sender import notify_patient
 
 router = APIRouter(prefix="/api", tags=["Personal Health API"])
 
@@ -98,50 +94,24 @@ class AppointmentUpdateRequest(BaseModel):
 
 
 
-class PushSubscriptionRequest(BaseModel):
-    endpoint: str
-    keys: dict
-    expirationTime: Optional[str] = None
-
-
 # ==========================================
-# Web Push Notification Endpoints
+# WhatsApp Notification Endpoints
 # ==========================================
-@router.get("/vapid-public-key")
-def get_vapid_public_key():
-    """Returns the VAPID public key for client-side push subscription setup."""
-    return {"vapid_public_key": VAPID_PUBLIC_KEY}
-
-
-@router.post("/push-subscribe")
-def subscribe_to_push(
-    subscription: PushSubscriptionRequest,
+@router.post("/whatsapp-test")
+def send_test_whatsapp(
     auth_user_id: str = Depends(verify_supabase_token),
     db: Session = Depends(get_db)
 ):
-    """Saves a browser's push subscription for this patient."""
-    patient = get_or_create_patient(db, auth_user_id)
-    save_push_subscription(
-        patient_id=str(patient.id),
-        subscription={"endpoint": subscription.endpoint, "keys": subscription.keys}
-    )
-    return {"success": True, "message": f"Push subscription saved for patient {patient.id}"}
-
-
-@router.post("/push-test")
-def send_test_push(
-    auth_user_id: str = Depends(verify_supabase_token),
-    db: Session = Depends(get_db)
-):
-    """Sends an immediate test push notification to verify the setup."""
+    """Sends an immediate test WhatsApp notification to verify the setup."""
     patient = get_or_create_patient(db, auth_user_id)
     success = notify_patient(
         patient_id=str(patient.id),
         title="🏥 HealthVault Test Notification",
-        body="Your push notifications are working! Medicine reminders will appear here.",
+        body="Your WhatsApp alerts are working! Medicine reminders will appear here.",
         data={"type": "test"}
     )
-    return {"success": success, "message": "Test notification sent!"}
+    return {"success": success, "message": "Test WhatsApp notification triggered!"}
+
 
 
 class LoginRequest(BaseModel):

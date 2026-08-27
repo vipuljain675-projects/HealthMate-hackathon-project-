@@ -79,13 +79,14 @@ export default function RemindersPage() {
   useEffect(() => { fetchReminders(); }, []);
 
   const statusConfig = {
-    idle: { icon: <Bell className="w-5 h-5" />, label: 'Enable Notifications for Medicine Reminders', color: 'border-teal-500/40 text-teal-300 bg-teal-500/10', showEnable: true, showTest: false },
-    requesting: { icon: <Loader2 className="w-5 h-5 animate-spin" />, label: 'Requesting Permission...', color: 'border-gray-600 text-gray-400 bg-gray-900', showEnable: false, showTest: false },
-    granted: { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, label: '🔔 Reminders Active — In-app alerts + sound + OS notifications', color: 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10', showEnable: false, showTest: true },
-    denied: { icon: <AlertTriangle className="w-5 h-5 text-yellow-400" />, label: 'OS Notifications blocked — in-app alerts + sound will still work!', color: 'border-yellow-500/40 text-yellow-300 bg-yellow-500/10', showEnable: false, showTest: true },
-    unsupported: { icon: <XCircle className="w-5 h-5 text-red-400" />, label: 'Browser does not support notifications', color: 'border-red-500/40 text-red-300 bg-red-500/10', showEnable: false, showTest: false },
+    idle: { icon: <Bell className="w-5 h-5" />, label: 'Enable WhatsApp Reminders for Medicine Alarms', color: 'border-teal-500/40 text-teal-300 bg-teal-500/10', showEnable: true, showTest: false },
+    requesting: { icon: <Loader2 className="w-5 h-5 animate-spin" />, label: 'Requesting Status...', color: 'border-gray-600 text-gray-400 bg-gray-900', showEnable: false, showTest: false },
+    granted: { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, label: '🔔 WhatsApp Reminders Active — Alarms will be pushed directly to your phone', color: 'border-teal-500/40 text-teal-300 bg-teal-500/10', showEnable: false, showTest: true },
+    denied: { icon: <AlertTriangle className="w-5 h-5 text-yellow-400" />, label: 'WhatsApp Alerts inactive — please register a phone number in profile settings!', color: 'border-yellow-500/40 text-yellow-300 bg-yellow-500/10', showEnable: false, showTest: true },
+    unsupported: { icon: <XCircle className="w-5 h-5 text-red-400" />, label: 'WhatsApp messaging currently unconfigured', color: 'border-red-500/40 text-red-300 bg-red-500/10', showEnable: false, showTest: false },
   };
   const cfg = statusConfig[status] || statusConfig['idle'];
+
 
   return (
     <>
