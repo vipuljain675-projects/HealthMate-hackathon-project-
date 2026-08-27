@@ -32,6 +32,7 @@ from generation.timeline_summarizer import generate_timeline_summary
 from generation.qa_generator import answer_patient_question
 from notifications.notification_sender import notify_patient
 
+
 router = APIRouter(prefix="/api", tags=["Personal Health API"])
 
 
@@ -95,22 +96,22 @@ class AppointmentUpdateRequest(BaseModel):
 
 
 # ==========================================
-# WhatsApp Notification Endpoints
+# Notification Test Endpoint
 # ==========================================
-@router.post("/whatsapp-test")
-def send_test_whatsapp(
+@router.post("/test-notification")
+def send_test_notification(
     auth_user_id: str = Depends(verify_supabase_token),
     db: Session = Depends(get_db)
 ):
-    """Sends an immediate test WhatsApp notification to verify the setup."""
+    """Sends an immediate test medicine alert to verify the notification setup."""
     patient = get_or_create_patient(db, auth_user_id)
     success = notify_patient(
         patient_id=str(patient.id),
-        title="🏥 HealthVault Test Notification",
-        body="Your WhatsApp alerts are working! Medicine reminders will appear here.",
+        title="🏥 HealthVault Test Alert",
+        body="Your health OS notifications are configured successfully! Medicine reminders will appear here.",
         data={"type": "test"}
     )
-    return {"success": success, "message": "Test WhatsApp notification triggered!"}
+    return {"success": success, "message": "Test notification sent!"}
 
 
 

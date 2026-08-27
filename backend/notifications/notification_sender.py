@@ -1,7 +1,7 @@
 import os
-from typing import Dict, Optional
 from dotenv import load_dotenv
 from twilio.rest import Client
+from typing import Dict, Optional
 
 load_dotenv()
 
@@ -39,7 +39,7 @@ def send_whatsapp_notification(to_phone: str, body: str) -> bool:
 
 
 def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] = None) -> bool:
-    """High-level helper: checks if the patient has a registered phone number, sends WhatsApp. Falls back to console log."""
+    """High-level helper: checks if the patient has a registered phone number, sends WhatsApp. Falls back to console."""
     patient_id_str = str(patient_id)
     try:
         from db.postgres_client import SessionLocal
@@ -57,6 +57,6 @@ def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] 
     except Exception as e:
         print(f"[Notification Helper Error] {e}")
 
-    # Fallback to pure console logging
-    print(f"[🔔 Console Notification Fallback] {title}: {body}")
+    # Fallback to Console print if no phone number is registered
+    print(f"[🔔 Console Fallback Alert] {title}: {body}")
     return True

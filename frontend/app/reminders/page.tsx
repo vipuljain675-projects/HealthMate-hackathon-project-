@@ -2,9 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import ReminderCard from '@/components/ReminderCard';
-import ReminderToastContainer from '@/components/ReminderToastContainer';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { Bell, Plus, BellRing, CheckCircle2, XCircle, Loader2, Send, AlertTriangle } from 'lucide-react';
+import { Bell, Plus, CheckCircle2, Loader2, Send, AlertTriangle } from 'lucide-react';
 
 import { BACKEND_URL } from '@/lib/config';
 
@@ -17,7 +15,10 @@ export default function RemindersPage() {
   const [frequency, setFrequency] = useState('daily');
   const [isAdding, setIsAdding] = useState(false);
 
-  const { status, message, toasts, dismissToast, enableNotifications, sendTestNotification } = usePushNotifications();
+  // WhatsApp Alert Configuration State
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [testMessage, setTestMessage] = useState('');
 
   const getAuthToken = () => {
     try {
@@ -76,23 +77,42 @@ export default function RemindersPage() {
     }
   };
 
-  useEffect(() => { fetchReminders(); }, []);
-
-  const statusConfig = {
-    idle: { icon: <Bell className="w-5 h-5" />, label: 'Enable WhatsApp Reminders for Medicine Alarms', color: 'border-teal-500/40 text-teal-300 bg-teal-500/10', showEnable: true, showTest: false },
-    requesting: { icon: <Loader2 className="w-5 h-5 animate-spin" />, label: 'Requesting Status...', color: 'border-gray-600 text-gray-400 bg-gray-900', showEnable: false, showTest: false },
-    granted: { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, label: '🔔 WhatsApp Reminders Active — Alarms will be pushed directly to your phone', color: 'border-teal-500/40 text-teal-300 bg-teal-500/10', showEnable: false, showTest: true },
-    denied: { icon: <AlertTriangle className="w-5 h-5 text-yellow-400" />, label: 'WhatsApp Alerts inactive — please register a phone number in profile settings!', color: 'border-yellow-500/40 text-yellow-300 bg-yellow-500/10', showEnable: false, showTest: true },
-    unsupported: { icon: <XCircle className="w-5 h-5 text-red-400" />, label: 'WhatsApp messaging currently unconfigured', color: 'border-red-500/40 text-red-300 bg-red-500/10', showEnable: false, showTest: false },
+  const handleSendTestNotification = async () => {
+    setTestLoading(true);
+    setTestMessage('');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/test-notification`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      if (res.ok) {
+        setTestMessage('✅ Test alert triggered successfully! Check your phone.');
+      } else {
+        throw new Error('Server returned error');
+      }
+    } catch (e) {
+      setTestMessage('❌ Failed to trigger test alert. Ensure Twilio setup is complete.');
+    } finally {
+      setTestLoading(false);
+    }
   };
-  const cfg = statusConfig[status] || statusConfig['idle'];
 
+  useEffect(() => {
+    fetchReminders();
+    // Load patient phone number from local session state
+    try {
+      const raw = localStorage.getItem('user_session');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.phone_number) {
+          setPhoneNumber(parsed.phone_number);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   return (
     <>
-      {/* Global Toast Overlay */}
-      <ReminderToastContainer toasts={toasts} onDismiss={dismissToast} />
-
       <div className="space-y-8 max-w-4xl mx-auto">
         {/* Header */}
         <div className="border-b border-gray-800 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -114,34 +134,42 @@ export default function RemindersPage() {
         </div>
 
 
-        {/* Notification Status Banner */}
-        <div className={`glass-card rounded-2xl p-5 border ${cfg.color} flex flex-col sm:flex-row sm:items-center gap-4`}>
-          <div className="flex items-center gap-3 flex-1">
-            {cfg.icon}
-            <div>
-              <p className="font-bold text-sm">{cfg.label}</p>
-              {status === 'idle' && <p className="text-xs opacity-70 mt-0.5">In-app alerts + sound always work. OS notifications are a bonus.</p>}
-              {message && <p className="text-xs opacity-80 mt-0.5">{message}</p>}
+        {/* WhatsApp Notification Status Banner */}
+        {phoneNumber ? (
+          <div className="glass-card rounded-2xl p-5 border border-emerald-500/40 text-emerald-300 bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <div>
+                <p className="font-bold text-sm">🔔 WhatsApp Reminders Active</p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  Medicine alarms will be pushed directly to your phone: <span className="font-bold text-white">{phoneNumber}</span>. Make sure you joined the Twilio Sandbox.
+                </p>
+                {testMessage && <p className="text-xs font-semibold mt-1">{testMessage}</p>}
+              </div>
+            </div>
+            <button
+              onClick={handleSendTestNotification}
+              disabled={testLoading}
+              className="px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-emerald-500/40 text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-emerald-400" />}
+              <span>Test WhatsApp Alarm</span>
+            </button>
+          </div>
+        ) : (
+          <div className="glass-card rounded-2xl p-5 border border-yellow-500/40 text-yellow-300 bg-yellow-500/10 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <div>
+                <p className="font-bold text-sm">⚠️ WhatsApp Reminders Deactivated</p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  To receive active medicine reminders on your phone, click on your profile avatar (top-right circle) and edit/save your WhatsApp phone number.
+                </p>
+              </div>
             </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            {cfg.showEnable && (
-              <button onClick={enableNotifications} className="px-4 py-2 rounded-xl gradient-btn text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-teal-500/20">
-                <BellRing className="w-4 h-4" /> Allow Notifications
-              </button>
-            )}
-            {cfg.showTest && (
-              <button onClick={sendTestNotification} className="px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-sm font-semibold flex items-center gap-2 hover:border-teal-500/40 transition-colors">
-                <Send className="w-4 h-4 text-teal-400" /> Send Test Ping
-              </button>
-            )}
-            {status === 'idle' && (
-              <button onClick={sendTestNotification} className="px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white text-sm font-semibold flex items-center gap-2 hover:border-teal-500/40 transition-colors">
-                <Send className="w-4 h-4 text-teal-400" /> Test Alert
-              </button>
-            )}
-          </div>
-        </div>
+        )}
+
 
         {/* Add Reminder Form */}
         <form onSubmit={handleAddReminder} className="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
