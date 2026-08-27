@@ -2,13 +2,21 @@ import os
 import json
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
+from twilio.rest import Client
 
 load_dotenv()
 
+# Web Push Keys (Backward compatibility)
 raw_priv = os.getenv("VAPID_PRIVATE_KEY", "").strip()
 VAPID_PRIVATE_KEY = raw_priv.replace("\\n", "\n").strip("\"'")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip().strip("\"'")
 VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@healthvault.app").strip()
+
+# Twilio WhatsApp Credentials
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886").strip()
+
 
 
 _push_subscriptions: Dict[str, Dict] = {}
@@ -177,21 +185,63 @@ def delete_push_subscription(patient_id: str):
         print(f"[WebPush DB Delete Error] {e}")
 
 
+def send_whatsapp_notification(to_phone: str, body: str) -> bool:
+    """Send a WhatsApp message via Twilio Sandbox API."""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        print(f"[WhatsApp Sandbox Console Fallback] 📱 To {to_phone}: {body}")
+        return True
+
+    # Clean phone number to ensure it has whatsapp: prefix and country code
+    phone = to_phone.strip()
+    if not phone.startswith("whatsapp:"):
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+        phone = f"whatsapp:{phone}"
+
+    try:
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        message = client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            body=body,
+            to=phone
+        )
+        print(f"[WhatsApp Sent] ✅ SID: {message.sid} to {phone}")
+        return True
+    except Exception as e:
+        print(f"[WhatsApp Send Error] ❌ Failed to send message to {phone}: {e}")
+        return False
+
+
 def notify_patient(patient_id: str, title: str, body: str, data: Optional[Dict] = None) -> bool:
-    """High-level helper: look up subscription and send push to a patient."""
+    """High-level helper: checks if the patient has a registered phone number, sends WhatsApp. Falls back to console/Web Push."""
     patient_id_str = str(patient_id)
+    try:
+        from db.postgres_client import SessionLocal
+        from db.models import Patient
+        import uuid
+
+        db = SessionLocal()
+        patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id_str)).first()
+        db.close()
+
+        if patient and patient.phone_number:
+            # We have a phone number! Send via WhatsApp!
+            whatsapp_body = f"🏥 *HealthVault Alert*\n\n* {title} *\n{body}"
+            return send_whatsapp_notification(patient.phone_number, whatsapp_body)
+    except Exception as e:
+        print(f"[Notification Helper Error] {e}")
+
+    # Fallback to Web Push / Console if no WhatsApp configuration or phone number exists
     subscription = get_push_subscription(patient_id_str)
     if not subscription:
-        print(f"[WebPush] No subscription found for patient {patient_id_str} — console fallback.")
         print(f"[🔔 Console Notification] {title}: {body}")
         return True
 
     result = send_web_push_notification(subscription, title=title, body=body, data=data)
-
-    # 410 Gone — subscription expired, auto-delete so it refreshes on next login
     if result is None:
         delete_push_subscription(patient_id_str)
         print(f"[🔔 Console Notification] {title}: {body}")
         return True
 
     return result
+

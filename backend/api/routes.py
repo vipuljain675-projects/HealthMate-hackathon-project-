@@ -252,6 +252,7 @@ class UserProfileUpdateRequest(BaseModel):
     auth_provider: Optional[str] = "email"
     age: Optional[str] = "28 Yrs"
     gender: Optional[str] = "Male"
+    phone_number: Optional[str] = None
 
 
 # ==========================================
@@ -272,6 +273,7 @@ def get_current_patient_profile(
         "password_hash": patient.password_hash,
         "age": patient.age or "28 Yrs",
         "gender": patient.gender or "Male",
+        "phone_number": patient.phone_number,
         "created_at": str(patient.created_at)
     }
 
@@ -289,7 +291,8 @@ def update_current_patient_profile(
         email=payload.email,
         auth_provider=payload.auth_provider,
         age=payload.age,
-        gender=payload.gender
+        gender=payload.gender,
+        phone_number=payload.phone_number
     )
     if payload.name and payload.name not in ["Patient Profile", "Rajesh Kumar"]:
         patient.name = payload.name
@@ -301,6 +304,8 @@ def update_current_patient_profile(
         patient.age = payload.age
     if payload.gender:
         patient.gender = payload.gender
+    if payload.phone_number is not None:
+        patient.phone_number = payload.phone_number
 
     db.commit()
     db.refresh(patient)
@@ -309,11 +314,12 @@ def update_current_patient_profile(
         "auth_user_id": patient.auth_user_id,
         "name": patient.name,
         "email": patient.email,
-        "auth_provider": patient.auth_provider,
-        "password_hash": patient.password_hash,
-        "age": patient.age,
-        "gender": patient.gender
+        "auth_provider": patient.auth_provider or "email",
+        "age": patient.age or "28 Yrs",
+        "gender": patient.gender or "Male",
+        "phone_number": patient.phone_number
     }
+
 
 
 # ==========================================

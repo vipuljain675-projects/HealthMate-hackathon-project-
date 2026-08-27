@@ -18,6 +18,8 @@ import {
   User,
   Save
 } from 'lucide-react';
+import { BACKEND_URL } from '@/lib/config';
+
 
 export default function HeaderBar() {
   const pathname = usePathname();
@@ -32,33 +34,55 @@ export default function HeaderBar() {
     email: 'vipuljain675@gmail.com',
     age: '28 Yrs',
     gender: 'Male',
-    patient_id: 'PID-456789'
+    phone_number: '',
+    patient_id: 'PID-456789',
+    auth_token: 'mock_token_dev'
   });
 
   const [editName, setEditName] = useState('');
   const [editAge, setEditAge] = useState('');
   const [editGender, setEditGender] = useState('Male');
+  const [editPhone, setEditPhone] = useState('');
   
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Load dynamic user session from localStorage
+  // Load and sync dynamic user session from localStorage & backend
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('user_session');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.name) {
+    const syncProfile = async () => {
+      try {
+        const raw = localStorage.getItem('user_session');
+        if (raw) {
+          const parsed = JSON.parse(raw);
           setUser(parsed);
           setEditName(parsed.name || '');
           setEditAge(parsed.age || '28 Yrs');
           setEditGender(parsed.gender || 'Male');
+          setEditPhone(parsed.phone_number || '');
+
+          // Fetch fresh profile from API to sync
+          const token = parsed.auth_token || 'mock_token_dev';
+          const res = await fetch(`${BACKEND_URL}/api/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const fresh = await res.json();
+            const synced = { ...parsed, ...fresh };
+            setUser(synced);
+            setEditName(synced.name || '');
+            setEditAge(synced.age || '28 Yrs');
+            setEditGender(synced.gender || 'Male');
+            setEditPhone(synced.phone_number || '');
+            localStorage.setItem('user_session', JSON.stringify(synced));
+          }
         }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+    syncProfile();
   }, []);
+
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -101,23 +125,39 @@ export default function HeaderBar() {
     return nameStr.slice(0, 2).toUpperCase();
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const updated = {
       ...user,
       name: editName.trim() || user.name,
       age: editAge.trim() || user.age,
-      gender: editGender
+      gender: editGender,
+      phone_number: editPhone.trim()
     };
     setUser(updated);
     try {
       localStorage.setItem('user_session', JSON.stringify(updated));
+      const token = user.auth_token || 'mock_token_dev';
+      await fetch(`${BACKEND_URL}/api/me`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName.trim() || user.name,
+          age: editAge.trim() || user.age,
+          gender: editGender,
+          phone_number: editPhone.trim()
+        })
+      });
     } catch (err) {
       console.error(err);
     }
     setIsEditProfileOpen(false);
     window.location.reload();
   };
+
 
   // Temporary Exit: leaves account active, retains remembered_email so Email is pre-filled on Login screen
   const handleLogout = () => {
@@ -250,14 +290,23 @@ export default function HeaderBar() {
                     </div>
                     <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
                     
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-500/20 text-teal-300 font-bold">
-                        {user.patient_id || 'PID-456789'}
-                      </span>
-                      <span className="text-[10px] text-gray-400 font-medium">
-                        {user.age || '28 Yrs'} / {user.gender || 'Male'}
-                      </span>
+                    <div className="flex flex-col gap-1 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-500/20 text-teal-300 font-bold">
+                          {user.patient_id || 'PID-456789'}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {user.age || '28 Yrs'} / {user.gender || 'Male'}
+                        </span>
+                      </div>
+                      {user.phone_number && (
+                        <p className="text-[10px] text-teal-400 font-semibold flex items-center gap-1 mt-0.5">
+                          <span>📱 {user.phone_number}</span>
+                          <span className="text-[9px] text-gray-500 font-normal">(WhatsApp Active)</span>
+                        </p>
+                      )}
                     </div>
+
                   </div>
                 </div>
 
@@ -386,6 +435,23 @@ export default function HeaderBar() {
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="text-gray-400 font-semibold uppercase tracking-wider block mb-1.5">
+                  WhatsApp Phone Number (with Country Code)
+                </label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="e.g. +918851938806"
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm text-white focus:border-teal-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  💡 Send "join <span className="text-teal-400">sandbox-name</span>" to your Twilio number to activate WhatsApp alerts.
+                </p>
+              </div>
+
 
               <div className="pt-3 flex items-center justify-end space-x-2.5 border-t border-gray-800/80">
                 <button

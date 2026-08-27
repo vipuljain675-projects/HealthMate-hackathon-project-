@@ -38,6 +38,7 @@ def init_db():
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS password_hash VARCHAR;"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS age VARCHAR DEFAULT '28 Yrs';"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender VARCHAR DEFAULT 'Male';"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone_number VARCHAR;"))
             conn.commit()
     except Exception as e:
         print(f"[Database Migration Note] {e}")
@@ -60,7 +61,8 @@ def get_or_create_patient(
     email: Optional[str] = None,
     auth_provider: Optional[str] = None,
     age: Optional[str] = "28 Yrs",
-    gender: Optional[str] = "Male"
+    gender: Optional[str] = "Male",
+    phone_number: Optional[str] = None
 ) -> Patient:
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
 
@@ -89,7 +91,8 @@ def get_or_create_patient(
             auth_provider=real_provider,
             password_hash=real_password_hash,
             age=age or "28 Yrs",
-            gender=gender or "Male"
+            gender=gender or "Male",
+            phone_number=phone_number
         )
         db.add(patient)
         db.commit()
@@ -104,6 +107,8 @@ def get_or_create_patient(
             patient.age = age
         if gender:
             patient.gender = gender
+        if phone_number is not None:
+            patient.phone_number = phone_number
         db.commit()
         db.refresh(patient)
 

@@ -17,7 +17,9 @@ class Patient(Base):
     password_hash = Column(String, nullable=True)        # secure hashed password
     age = Column(String, default="28 Yrs")
     gender = Column(String, default="Male")
+    phone_number = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
     # Relationships
     visits = relationship("Visit", back_populates="patient", cascade="all, delete-orphan")
