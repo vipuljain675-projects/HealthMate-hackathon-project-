@@ -30,13 +30,13 @@ export default function HeaderBar() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   const [user, setUser] = useState({
-    name: 'Vipul Jain',
-    email: 'vipuljain675@gmail.com',
+    name: 'Patient Profile',
+    email: '',
     age: '28 Yrs',
     gender: 'Male',
     phone_number: '',
-    patient_id: 'PID-456789',
-    auth_token: 'mock_token_dev'
+    patient_id: 'PID-Patient',
+    auth_token: ''
   });
 
   const [editName, setEditName] = useState('');

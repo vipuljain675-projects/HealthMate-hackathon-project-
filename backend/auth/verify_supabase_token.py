@@ -9,37 +9,34 @@ load_dotenv()
 
 security = HTTPBearer(auto_error=False)
 
-MOCK_AUTH = os.getenv("MOCK_AUTH", "true").lower() in ("true", "1", "yes")
-DEFAULT_MOCK_USER_ID = os.getenv("DEFAULT_MOCK_USER_ID", "mock_user_vipuljain675_gmail_com")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 
 def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> str:
     """
-    Verifies incoming HTTP Bearer token from Supabase Auth or mock user session.
+    Verifies incoming HTTP Bearer token from Supabase Auth or session token.
     Returns: logged-in patient's `auth_user_id` string.
     """
-    if credentials and credentials.credentials:
-        token = credentials.credentials.strip()
-        # If token is passed e.g. "user_session_xyz"
-        if token and token != "mock_token_dev" and not token.startswith("sb-"):
-            return token
-
-    if MOCK_AUTH and not credentials:
-        return DEFAULT_MOCK_USER_ID
-
-    if not credentials:
+    if not credentials or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization Header Bearer Token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = credentials.credentials
+    token = credentials.credentials.strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Empty Authorization Header Token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if MOCK_AUTH and token.startswith("mock_token"):
-        return DEFAULT_MOCK_USER_ID
+    # 1. Direct custom user session tokens (e.g. "user_xyz", "mock_user_john_gmail_com")
+    if not token.startswith("sb-") and not token.startswith("ey"):
+        return token
 
+    # 2. JWT Tokens (Supabase Auth tokens starting with "ey...")
     try:
         if SUPABASE_JWT_SECRET:
             payload = jwt.decode(
@@ -48,25 +45,19 @@ def verify_supabase_token(credentials: Optional[HTTPAuthorizationCredentials] = 
                 algorithms=["HS256"],
                 options={"verify_aud": False}
             )
-            auth_user_id = payload.get("sub")
+            auth_user_id = payload.get("sub") or payload.get("email")
         else:
             payload = jwt.decode(token, options={"verify_signature": False})
-            auth_user_id = payload.get("sub")
+            auth_user_id = payload.get("sub") or payload.get("email")
 
         if not auth_user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token missing subject ('sub') claim",
+                detail="Token missing subject ('sub') or email claim",
             )
 
-        return auth_user_id
+        return str(auth_user_id)
 
-    except jwt.PyJWTError as e:
-        # Fall back to token as auth_user_id in dev mode
-        if MOCK_AUTH and token:
-            return token
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authorization token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except jwt.PyJWTError:
+        # Fallback: Use token string as auth_user_id
+        return token

@@ -64,24 +64,36 @@ def get_or_create_patient(
     gender: Optional[str] = "Male",
     phone_number: Optional[str] = None
 ) -> Patient:
+    # 1. Primary Lookup by unique auth_user_id
     patient = db.query(Patient).filter(Patient.auth_user_id == auth_user_id).first()
 
-    # Determine clean real email and name
-    clean_email = email.strip().lower() if email else "vipuljain675@gmail.com"
-    if "@example.com" in clean_email or clean_email in ["demo-patient-auth-id-123", "demo-patient-auth-id-123@example.com"]:
-        clean_email = "vipuljain675@gmail.com"
+    # Determine clean email for this user
+    if email and email.strip() and "@example.com" not in email:
+        clean_email = email.strip().lower()
+    elif patient and patient.email:
+        clean_email = patient.email
+    else:
+        safe_key = re.sub(r'[^a-z0-9]', '_', auth_user_id.lower())
+        clean_email = f"{safe_key}@patient.healthvault.app"
 
-    clean_name = name.strip() if name and name not in ["Patient Profile", "demo-patient-auth-id-123"] else "Vipul Jain"
-    
-    real_provider = auth_provider or ("google" if "google" in auth_user_id or clean_email == "vipuljain675@gmail.com" else "email")
+    # Determine clean name for this user
+    if name and name.strip() and name.strip() not in ["Patient Profile", "demo-patient-auth-id-123"]:
+        clean_name = name.strip()
+    elif patient and patient.name:
+        clean_name = patient.name
+    else:
+        clean_name = clean_email.split('@')[0].replace('_', ' ').replace('.', ' ').title()
+
+    real_provider = auth_provider or (patient.auth_provider if patient else ("google" if "google" in auth_user_id else "email"))
     real_password_hash = "$oauth$google_protected_identity" if real_provider == "google" else "$pbkdf2_sha256$8f9d0c1e2a3b4c5d6e7f8a9b0c1d2e3f"
 
-    # Secondary lookup by email to avoid UniqueViolation constraint error
-    if not patient:
+    # 2. Secondary Lookup by email if not found by auth_user_id
+    if not patient and clean_email:
         patient = db.query(Patient).filter(Patient.email == clean_email).first()
         if patient:
             patient.auth_user_id = auth_user_id
 
+    # 3. Create if still not found
     if not patient:
         patient = Patient(
             id=uuid.uuid4(),
@@ -98,11 +110,13 @@ def get_or_create_patient(
         db.commit()
         db.refresh(patient)
     else:
-        patient.name = clean_name
-        patient.email = clean_email
-        patient.auth_provider = real_provider
-        if not patient.password_hash:
-            patient.password_hash = real_password_hash
+        # Update ONLY if explicit parameters are passed
+        if name and name.strip() and name.strip() != "Patient Profile":
+            patient.name = name.strip()
+        if email and email.strip() and "@example.com" not in email:
+            patient.email = email.strip().lower()
+        if auth_provider:
+            patient.auth_provider = auth_provider
         if age:
             patient.age = age
         if gender:
