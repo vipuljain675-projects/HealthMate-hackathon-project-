@@ -3,6 +3,8 @@
 import React from 'react';
 import { Calendar, Building2, User, FileText, ExternalLink, Tag, TestTube2, Pill } from 'lucide-react';
 
+import { BACKEND_URL } from '@/lib/config';
+
 interface TimelineCardProps {
   date: string;
   hospital?: string;
@@ -30,6 +32,12 @@ export default function TimelineCard({
 }: TimelineCardProps) {
   const isLabReport = labs.length > 0 || (reason && reason.toLowerCase().includes('lab'));
 
+  const scanUrl = original_file_url
+    ? (original_file_url.startsWith('http')
+        ? original_file_url
+        : `${BACKEND_URL}${original_file_url.startsWith('/') ? '' : '/'}${original_file_url}`)
+    : null;
+
   return (
     <div className="glass-card rounded-2xl p-6 relative overflow-hidden transition-all hover:border-teal-500/40 hover:shadow-xl hover:shadow-teal-500/5 group">
       {/* Accent glow line */}
@@ -48,9 +56,9 @@ export default function TimelineCard({
           </span>
         </div>
 
-        {original_file_url && (
+        {scanUrl && (
           <a
-            href={original_file_url}
+            href={scanUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center space-x-1.5 text-xs text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-3 py-1.5 rounded-lg border border-teal-500/30 transition-colors w-fit"

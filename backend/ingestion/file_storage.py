@@ -48,4 +48,5 @@ def upload_scan_file(file_bytes: bytes, filename: str, content_type: str = "imag
     with open(local_path, "wb") as f:
         f.write(file_bytes)
 
-    return f"/scans/{unique_filename}"
+    backend_domain = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("BACKEND_URL") or "https://healthmate-hackathon-project.onrender.com"
+    return f"{backend_domain.rstrip('/')}/scans/{unique_filename}"
