@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import ReminderCard from '@/components/ReminderCard';
-import { Bell, Plus, CheckCircle2, Loader2, Send, AlertTriangle } from 'lucide-react';
+import { Bell, Plus, CheckCircle2, Loader2, Send, AlertTriangle, Phone } from 'lucide-react';
 
 import { BACKEND_URL } from '@/lib/config';
 
@@ -17,6 +17,9 @@ export default function RemindersPage() {
 
   // WhatsApp Alert Configuration State
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [editPhoneInput, setEditPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [phoneSaved, setPhoneSaved] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testMessage, setTestMessage] = useState('');
 
@@ -77,6 +80,40 @@ export default function RemindersPage() {
     }
   };
 
+  const handleSavePhone = async () => {
+    const phone = editPhoneInput.trim();
+    if (!phone) return;
+    setSavingPhone(true);
+    setPhoneSaved(false);
+    try {
+      const raw = localStorage.getItem('user_session');
+      const session = raw ? JSON.parse(raw) : {};
+      const updated = { ...session, phone_number: phone };
+      localStorage.setItem('user_session', JSON.stringify(updated));
+
+      await fetch(`${BACKEND_URL}/api/me`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+          name: session.name || 'Patient Profile',
+          phone_number: phone
+        })
+      });
+
+      setPhoneNumber(phone);
+      setPhoneSaved(true);
+      setTimeout(() => setPhoneSaved(false), 3000);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to save phone number. Please try again.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
   const handleSendTestNotification = async () => {
     setTestLoading(true);
     setTestMessage('');
@@ -86,12 +123,12 @@ export default function RemindersPage() {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       if (res.ok) {
-        setTestMessage('✅ Test alert triggered successfully! Check your phone.');
+        setTestMessage('✅ Test alert triggered! Check your WhatsApp.');
       } else {
         throw new Error('Server returned error');
       }
     } catch (e) {
-      setTestMessage('❌ Failed to trigger test alert. Ensure Twilio setup is complete.');
+      setTestMessage('❌ Failed to trigger test. Ensure Twilio setup is complete.');
     } finally {
       setTestLoading(false);
     }
@@ -99,13 +136,13 @@ export default function RemindersPage() {
 
   useEffect(() => {
     fetchReminders();
-    // Load patient phone number from local session state
     try {
       const raw = localStorage.getItem('user_session');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.phone_number) {
           setPhoneNumber(parsed.phone_number);
+          setEditPhoneInput(parsed.phone_number);
         }
       }
     } catch (e) {}
@@ -133,16 +170,16 @@ export default function RemindersPage() {
           </button>
         </div>
 
-
         {/* WhatsApp Notification Status Banner */}
         {phoneNumber ? (
           <div className="glass-card rounded-2xl p-5 border border-emerald-500/40 text-emerald-300 bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex items-center gap-3 flex-1">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <div>
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+              <div className="flex-1">
                 <p className="font-bold text-sm">🔔 WhatsApp Reminders Active</p>
                 <p className="text-xs opacity-80 mt-0.5">
-                  Medicine alarms will be pushed directly to your phone: <span className="font-bold text-white">{phoneNumber}</span>. Make sure you joined the Twilio Sandbox.
+                  Medicine alarms → <span className="font-bold text-white">{phoneNumber}</span>.
+                  Ensure you sent <code className="bg-black/30 px-1 rounded">join &lt;sandbox-word&gt;</code> to <strong className="text-white">+1 415 523 8886</strong> on WhatsApp.
                 </p>
                 {testMessage && <p className="text-xs font-semibold mt-1">{testMessage}</p>}
               </div>
@@ -150,26 +187,46 @@ export default function RemindersPage() {
             <button
               onClick={handleSendTestNotification}
               disabled={testLoading}
-              className="px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-emerald-500/40 text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-emerald-500/40 text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
             >
               {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-emerald-400" />}
-              <span>Test WhatsApp Alarm</span>
+              <span>Test WhatsApp</span>
             </button>
           </div>
         ) : (
-          <div className="glass-card rounded-2xl p-5 border border-yellow-500/40 text-yellow-300 bg-yellow-500/10 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+          <div className="glass-card rounded-2xl p-5 border border-yellow-500/40 text-yellow-300 bg-yellow-500/10 space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-bold text-sm">⚠️ WhatsApp Reminders Deactivated</p>
+                <p className="font-bold text-sm">⚠️ WhatsApp Reminders Not Set Up</p>
                 <p className="text-xs opacity-80 mt-0.5">
-                  To receive active medicine reminders on your phone, click on your profile avatar (top-right circle) and edit/save your WhatsApp phone number.
+                  Enter your WhatsApp number with country code (e.g. <span className="font-bold text-white">+91XXXXXXXXXX</span>).
+                  You must also text <code className="bg-black/20 px-1 rounded">join &lt;sandbox-word&gt;</code> to <strong className="text-white">+1 415 523 8886</strong> on WhatsApp first.
                 </p>
               </div>
             </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-yellow-400" />
+                <input
+                  type="tel"
+                  placeholder="+91XXXXXXXXXX"
+                  value={editPhoneInput}
+                  onChange={(e) => setEditPhoneInput(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-gray-900 border border-yellow-500/30 rounded-xl text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={handleSavePhone}
+                disabled={savingPhone || !editPhoneInput.trim()}
+                className="px-4 py-2 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {savingPhone ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {phoneSaved ? '✅ Saved!' : 'Save Number'}
+              </button>
+            </div>
           </div>
         )}
-
 
         {/* Add Reminder Form */}
         <form onSubmit={handleAddReminder} className="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
@@ -192,7 +249,7 @@ export default function RemindersPage() {
             </button>
           </div>
           <p className="text-xs text-gray-500">
-            💡 <strong className="text-gray-400">Testing tip:</strong> Set the time to 1-2 minutes from now then click "Test Alert" — a banner + sound will fire instantly, or wait for the scheduled time!
+            💡 <strong className="text-gray-400">Tip:</strong> Set the time 1–2 minutes from now, save your phone number, then click &quot;Test WhatsApp&quot; to verify everything works!
           </p>
         </form>
 

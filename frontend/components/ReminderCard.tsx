@@ -5,6 +5,17 @@ import { Bell, Clock, Check, Pencil, Trash2, Save, X, FileText } from 'lucide-re
 
 import { BACKEND_URL } from '@/lib/config';
 
+const getAuthToken = () => {
+  try {
+    const raw = localStorage.getItem('user_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.auth_token) return parsed.auth_token;
+    }
+  } catch (e) {}
+  return 'mock_token_dev';
+};
+
 interface ReminderCardProps {
   id: string;
   medicine_name: string;
@@ -43,11 +54,12 @@ export default function ReminderCard({
     const nextActive = !active;
     setActive(nextActive);
     try {
-      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_token_dev' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
         body: JSON.stringify({ active: nextActive })
       });
+      if (!res.ok) setActive(active); // Revert on failure
     } catch {
       setActive(active); // Revert on failure
     }
@@ -56,9 +68,9 @@ export default function ReminderCard({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_token_dev' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
         body: JSON.stringify({
           medicine_name: editName,
           dosage: editDosage,
@@ -67,10 +79,15 @@ export default function ReminderCard({
           notes: editNotes
         })
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error saving: ${err.detail || res.statusText}`);
+        return;
+      }
       setIsEditing(false);
       onRefresh?.();
     } catch {
-      alert('Error saving reminder');
+      alert('Network error saving reminder. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -79,13 +96,18 @@ export default function ReminderCard({
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/reminders/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer mock_token_dev' }
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error deleting: ${err.detail || res.statusText}`);
+        return;
+      }
       onRefresh?.();
     } catch {
-      alert('Error deleting reminder');
+      alert('Network error deleting reminder. Please try again.');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
