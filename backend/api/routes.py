@@ -107,7 +107,7 @@ def send_test_notification(
     patient = get_or_create_patient(db, auth_user_id)
     success = notify_patient(
         patient_id=str(patient.id),
-        title="🏥 HealthVault Test Alert",
+        title="🏥 HealthMate Test Alert",
         body="Your health OS notifications are configured successfully! Medicine reminders will appear here.",
         data={"type": "test"}
     )
@@ -135,7 +135,7 @@ import hashlib
 def hash_password(password: str) -> str:
     if not password or password == "google_oauth_protected":
         return "$oauth$google_protected_identity"
-    salted = f"healthvault_salt_{password}_2026"
+    salted = f"healthmate_salt_{password}_2026"
     return f"$pbkdf2_sha256${hashlib.sha256(salted.encode()).hexdigest()[:32]}"
 
 

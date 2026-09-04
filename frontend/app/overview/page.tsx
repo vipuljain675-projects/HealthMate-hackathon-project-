@@ -240,7 +240,7 @@ export default function OverviewDashboardPage() {
           {/* Card 4: Records in Vault (REAL COUNT) */}
           <div className="glass-card rounded-2xl p-5 border border-gray-800 hover:border-teal-500/40 transition-all">
             <div className="flex items-center justify-between text-gray-400 mb-3">
-              <span className="text-xs font-medium">Records in vault</span>
+              <span className="text-xs font-medium">Records in HealthMate</span>
               <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/30 flex items-center justify-center">
                 <FileText className="w-4 h-4" />
               </div>
@@ -281,7 +281,7 @@ export default function OverviewDashboardPage() {
             <div className="text-center py-12 text-sm text-gray-400">Loading recent timeline activity...</div>
           ) : visits.length === 0 ? (
             <div className="glass-card rounded-2xl p-8 text-center text-gray-400 text-sm">
-              No visit records found in your vault. Click "+ Add health record" to upload your first prescription.
+              No visit records found in your HealthMate profile. Click "+ Add health record" to upload your first prescription.
             </div>
           ) : (
             <div className="space-y-4">

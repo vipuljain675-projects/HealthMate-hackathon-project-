@@ -4,13 +4,13 @@ import Sidebar from '@/components/Sidebar';
 import HeaderBar from '@/components/HeaderBar';
 
 export const metadata: Metadata = {
-  title: 'HealthVault | AI Personal Health OS',
+  title: 'HealthMate | AI Personal Health OS',
   description: 'Multimodal clinical history, OCR document extraction, and hybrid AI Q&A health assistant.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'HealthVault',
+    title: 'HealthMate',
   },
 };
 
@@ -46,7 +46,7 @@ export default function RootLayout({
 
           {/* Footer */}
           <footer className="border-t border-gray-800/60 py-5 text-center text-xs text-gray-500 bg-[#080d16]">
-            <p>© 2026 HealthVault Personal Health Platform. Powered by FastAPI, Supabase, Groq & ChromaDB.</p>
+            <p>© 2026 HealthMate Personal Health Platform. Powered by FastAPI, Supabase, Groq & ChromaDB.</p>
           </footer>
         </div>
       </body>

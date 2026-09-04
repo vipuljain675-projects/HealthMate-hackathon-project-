@@ -107,11 +107,11 @@ export default function Navbar() {
         {/* Brand Logo */}
         <Link href="/timeline" className="flex items-center space-x-3 group">
           <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center p-1.5 group-hover:scale-105 transition-transform overflow-hidden">
-            <img src="/logo.png" alt="HealthVault Logo" className="w-full h-full object-contain" />
+            <img src="/logo.png" alt="HealthMate Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <span className="text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
-              Health<span className="gradient-text">Vault</span>
+              Health<span className="gradient-text">Mate</span>
             </span>
             <span className="text-[10px] text-teal-400/80 tracking-widest uppercase block -mt-1 font-semibold">
               Personal Health Platform

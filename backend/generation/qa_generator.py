@@ -203,7 +203,7 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
             for a in appts:
                 doc_name = format_doctor_name(a.get("doctor_name"))
                 lines.append(f"• **{a.get('appointment_date')} at {a.get('appointment_time', 'N/A')}** — {doc_name} at {a.get('hospital', 'Hospital/Clinic')} (*{a.get('reason', 'Consultation')}*)")
-            lines.append("\n*Disclaimer: Derived from your recorded appointments in HealthVault.*")
+            lines.append("\n*Disclaimer: Derived from your recorded appointments in HealthMate.*")
             return "\n".join(lines)
         return f"You don't have any upcoming appointments scheduled in your profile, {patient_name}."
 
@@ -248,7 +248,7 @@ def _build_fallback_from_records(patient_name: str, question: str, facts: Dict[s
 
     # 4. General summary fallback
     return (
-        f"Based on your records in HealthVault, {patient_name}:\n"
+        f"Based on your records in HealthMate, {patient_name}:\n"
         f"• **Total Visits:** {len(visits)}\n"
         f"• **Active Medications:** {len(meds)}\n"
         f"• **Lab Results Recorded:** {len(labs)}\n\n"

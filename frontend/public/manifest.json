@@ -1,6 +1,6 @@
 {
-  "name": "HealthVault - Personal Health OS",
-  "short_name": "HealthVault",
+  "name": "HealthMate - Personal Health OS",
+  "short_name": "HealthMate",
   "description": "Your AI-powered personal health assistant with medicine reminders, health timeline, and document scanning.",
   "start_url": "/",
   "display": "standalone",

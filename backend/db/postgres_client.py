@@ -74,7 +74,7 @@ def get_or_create_patient(
         clean_email = patient.email
     else:
         safe_key = re.sub(r'[^a-z0-9]', '_', auth_user_id.lower())
-        clean_email = f"{safe_key}@patient.healthvault.app"
+        clean_email = f"{safe_key}@patient.healthmate.app"
 
     # Determine clean name for this user
     if name and name.strip() and name.strip() not in ["Patient Profile", "demo-patient-auth-id-123"]:

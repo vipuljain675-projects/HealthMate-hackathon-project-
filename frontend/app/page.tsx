@@ -197,7 +197,7 @@ export default function AuthPage() {
             <Activity className="w-4 h-4 stroke-[2.5]" />
           </div>
           <span className="text-lg font-bold tracking-tight text-white font-mono lowercase">
-            healthvault
+            healthmate
           </span>
         </div>
 
@@ -227,7 +227,7 @@ export default function AuthPage() {
             </h1>
             
             <p className="text-sm text-gray-300 leading-relaxed max-w-lg">
-              A calmer way to understand your medical records. HealthVault brings every detail into focus, so you can make decisions with confidence.
+              A calmer way to understand your medical records. HealthMate brings every detail into focus, so you can make decisions with confidence.
             </p>
           </div>
 
@@ -271,7 +271,7 @@ export default function AuthPage() {
               <p className="text-xs text-gray-300 font-mono">12 documents · 4 insights surfaced</p>
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-44 opacity-35 group-hover:opacity-55 transition-opacity pointer-events-none">
-              <img src="/healthvault_auth_hero.png" alt="Live RAG Index" className="w-full h-full object-cover rounded-r-2xl" />
+              <img src="/healthmate_auth_hero.png" alt="Live RAG Index" className="w-full h-full object-cover rounded-r-2xl" />
             </div>
           </div>
 
@@ -283,13 +283,13 @@ export default function AuthPage() {
           {/* Top Form Subheader */}
           <div>
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400 font-bold block mb-1">
-              WELCOME TO HEALTHVAULT
+              WELCOME TO HEALTHMATE
             </span>
             <h2 className="text-2xl font-bold text-white tracking-tight">
               {authMode === 'signin' ? 'Pick up where you left off.' : 'Create your private account.'}
             </h2>
             <p className="text-xs text-gray-300 mt-0.5">
-              {authMode === 'signin' ? 'Sign in to your private health workspace.' : 'Join HealthVault to unify your medical records.'}
+              {authMode === 'signin' ? 'Sign in to your private health workspace.' : 'Join HealthMate to unify your medical records.'}
             </p>
           </div>
 

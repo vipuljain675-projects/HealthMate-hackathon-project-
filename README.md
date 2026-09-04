@@ -1,4 +1,4 @@
-# HealthVault — AI Personal Health OS 🏥
+# HealthMate — AI Personal Health OS 🏥
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js%2014-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -7,7 +7,7 @@
 [![Twilio](https://img.shields.io/badge/Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/)
 [![Groq](https://img.shields.io/badge/Groq-F05032?style=for-the-badge&logo=git&logoColor=white)](https://groq.com/)
 
-**HealthVault** is a state-of-the-art, installable **AI-powered Personal Health Operating System**. It aggregates unstructured medical records (handwritten prescriptions, clinical lab notes, diagnostic scans), processes them through a multi-model cognitive vision pipeline, and converts them into structured relational and vector databases (SQL + ChromaDB). 
+**HealthMate** is a state-of-the-art, installable **AI-powered Personal Health Operating System**. It aggregates unstructured medical records (handwritten prescriptions, clinical lab notes, diagnostic scans), processes them through a multi-model cognitive vision pipeline, and converts them into structured relational and vector databases (SQL + ChromaDB). 
 
 The platform features a **Hybrid RAG Q&A Assistant** (SQL Relational Facts + Vector Semantic Embeddings) and a **24/7 Cloud Background Scheduler** that delivers proactive **Twilio WhatsApp Notifications** for medicine schedules and doctor consultations directly to the patient's mobile phone—even when the website is completely closed.
 
@@ -145,7 +145,7 @@ HealthMate-hackathon-project-/
 
 ## 🧠 Hybrid RAG (Retrieval-Augmented Generation)
 
-HealthVault implements a **Hybrid RAG** architecture combining relational PostgreSQL queries with vector similarity search in ChromaDB.
+HealthMate implements a **Hybrid RAG** architecture combining relational PostgreSQL queries with vector similarity search in ChromaDB.
 
 ```
                     ┌───────────────────────────┐
@@ -189,7 +189,7 @@ Queries **ChromaDB** vector store using semantic similarity search. When a patie
 
 ## 👁️ Vision & Cognitive Ingestion Pipeline
 
-Medical document processing in HealthVault operates via a **3-Stage Cognitive Pipeline**:
+Medical document processing in HealthMate operates via a **3-Stage Cognitive Pipeline**:
 
 1. **Vision OCR Ingestion (`ocr_extractor.py`)**: 
    Scans uploaded prescription images and clinical PDFs using Groq's high-resolution vision LLM `qwen/qwen3.6-27b`, extracting raw handwritten or printed medical text.
@@ -208,7 +208,7 @@ Medical document processing in HealthVault operates via a **3-Stage Cognitive Pi
 
 ## 📱 Twilio WhatsApp Notification Architecture
 
-To overcome browser limitations (such as browser tabs being closed or push subscriptions expiring), HealthVault leverages **Twilio's Programmable Messaging WhatsApp API**.
+To overcome browser limitations (such as browser tabs being closed or push subscriptions expiring), HealthMate leverages **Twilio's Programmable Messaging WhatsApp API**.
 
 ```
 +-------------------+      1. Check Due Alarms (IST)     +--------------------+
@@ -243,7 +243,7 @@ To overcome browser limitations (such as browser tabs being closed or push subsc
 
 A critical engineering challenge in cloud platforms (like Render or AWS) is that servers run in **UTC Timezone** by default. When a patient in India sets a medicine reminder for **1:15 PM IST (13:15)**, the UTC server clock reads **07:45 AM (07:45)**.
 
-HealthVault resolves this by embedding **Explicit IST Timezone Alignment** in its background schedulers:
+HealthMate resolves this by embedding **Explicit IST Timezone Alignment** in its background schedulers:
 
 ```python
 # Convert cloud server UTC time to Indian Standard Time (IST = UTC + 5:30)
@@ -330,7 +330,7 @@ def check_due_medicine_reminders():
 
 ### Why Hybrid RAG Instead of Fine-Tuning LLMs?
 
-| Vector / Model Metric | Fine-Tuned Model | Hybrid RAG (HealthVault) |
+| Vector / Model Metric | Fine-Tuned Model | Hybrid RAG (HealthMate) |
 |---|---|---|
 | **Clinical Hallucinations** | **High risk.** Fine-tuned LLMs fabricate dosage numbers. | **Zero.** Answers strictly reference SQL database facts. |
 | **Real-time Data Update** | **Requires Retraining.** Expensive GPU cycles needed per upload. | **Instant (`<100ms`).** Inserted directly into PostgreSQL & Chroma. |

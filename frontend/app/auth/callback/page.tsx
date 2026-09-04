@@ -150,7 +150,7 @@ export default function AuthCallbackPage() {
           <div className="space-y-3">
             <h3 className="text-lg font-bold text-white">Authenticating Session...</h3>
             <p className="text-xs text-gray-400">
-              Verifying Google OAuth token with HealthVault Security Service...
+              Verifying Google OAuth token with HealthMate Security Service...
             </p>
             <div className="flex items-center justify-center space-x-2 text-teal-400 text-xs font-semibold pt-2">
               <Loader2 className="w-4 h-4 animate-spin" />
