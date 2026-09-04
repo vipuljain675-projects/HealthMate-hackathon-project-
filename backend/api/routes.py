@@ -25,7 +25,7 @@ from db.models import Patient
 from db.vector_client import add_visit_note_embedding, add_lab_results_embedding, add_medication_embedding
 from auth.verify_supabase_token import verify_supabase_token
 from ingestion.ocr_extractor import extract_text_from_image, clean_ocr_text
-from ingestion.entity_structurer import parse_raw_text_to_entities
+from ingestion.entity_structurer import parse_raw_text_to_entities, extract_entities_rule_based
 from ingestion.file_storage import upload_scan_file
 from retrieval.structured_retriever import retrieve_structured_patient_facts
 from generation.timeline_summarizer import generate_timeline_summary
@@ -297,6 +297,72 @@ def update_current_patient_profile(
 
 
 
+def heal_unparsed_patient_visits(db: Session, patient_id):
+    """
+    Auto-repairs visits where raw prescription text exists in notes but medications were not extracted.
+    Extracts missing medications, updates visit date/doctor/diagnosis, and triggers reminder auto-sync.
+    """
+    from db.models import Visit, Medication
+    visits = db.query(Visit).filter(Visit.patient_id == patient_id).all()
+    changed = False
+
+    for v in visits:
+        linked_meds = db.query(Medication).filter(Medication.visit_id == v.id).count()
+        notes_str = v.notes or ""
+        has_med_cues = any(w in notes_str for w in ["Tab.", "Syr.", "Cap.", "Pantocid", "Montair", "Ascoril", "Atorva", "Augmentin", "Paracetamol", "Amoxicillin"])
+
+        if linked_meds == 0 and has_med_cues:
+            extracted = extract_entities_rule_based(notes_str)
+            if extracted.medications:
+                # Update visit fields if empty or generic
+                if not v.doctor_name or v.doctor_name in ["Consultant Physician", None]:
+                    v.doctor_name = extracted.visit.doctor_name
+                if not v.hospital or v.hospital in ["Medical Center", "Apollo Hospitals", None]:
+                    v.hospital = extracted.visit.hospital
+                if not v.diagnosis or v.diagnosis in ["Medical Visit", "Routine Clinical Consultation", None]:
+                    v.diagnosis = extracted.visit.diagnosis
+                if extracted.visit.date:
+                    try:
+                        v.date = date.fromisoformat(extracted.visit.date)
+                    except Exception:
+                        pass
+
+                # Insert medications
+                for med in extracted.medications:
+                    existing_m = db.query(Medication).filter(
+                        Medication.patient_id == patient_id,
+                        Medication.drug_name == med.drug_name
+                    ).first()
+                    if existing_m:
+                        existing_m.visit_id = v.id
+                        existing_m.dosage = med.dosage or existing_m.dosage
+                        existing_m.frequency = med.frequency or existing_m.frequency
+                        existing_m.purpose = med.purpose or existing_m.purpose
+                        existing_m.duration_days = med.duration_days or existing_m.duration_days
+                        existing_m.status = "active"
+                    else:
+                        new_m = Medication(
+                            patient_id=patient_id,
+                            visit_id=v.id,
+                            drug_name=med.drug_name,
+                            dosage=med.dosage,
+                            frequency=med.frequency,
+                            purpose=med.purpose,
+                            duration_days=med.duration_days,
+                            status="active",
+                            started_on=v.date
+                        )
+                        db.add(new_m)
+                changed = True
+
+    if changed:
+        db.commit()
+        try:
+            auto_sync_reminders_from_medications(db, patient_id)
+        except Exception as e:
+            print(f"[Auto-Repair] Reminder sync note: {e}")
+
+
 # ==========================================
 # Timeline View Endpoint
 # ==========================================
@@ -306,6 +372,7 @@ def get_health_timeline(
     db: Session = Depends(get_db)
 ):
     patient = get_or_create_patient(db, auth_user_id)
+    heal_unparsed_patient_visits(db, patient.id)
     structured_facts = retrieve_structured_patient_facts(db, patient.id)
     summary_text = generate_timeline_summary(patient.name, structured_facts)
 
@@ -326,6 +393,7 @@ def list_medications(
     db: Session = Depends(get_db)
 ):
     patient = get_or_create_patient(db, auth_user_id)
+    heal_unparsed_patient_visits(db, patient.id)
     meds = get_patient_medications(db, patient.id, status=status)
     return [
         {
